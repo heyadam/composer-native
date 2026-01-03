@@ -23,9 +23,9 @@ On build failure:
 - **Auto-fix**: Missing imports, `await` keywords, simple typos
 - **Ask first**: Architectural changes, ambiguous fixes
 
-## Development: Use Axiom Plugin
+## Development: Axiom First, Context7 to Verify
 
-Use Axiom skills for iOS/Swift development. Invoke the relevant skill BEFORE implementing features.
+**Default to Axiom** for all iOS/Swift development. Invoke the relevant skill BEFORE implementing features. Occasionally verify with Context7 when APIs seem unfamiliar or you want to double-check syntax.
 
 ### Apple Intelligence & iOS 26
 - `foundation-models` - On-device AI with Foundation Models framework
@@ -64,6 +64,13 @@ Use Axiom skills for iOS/Swift development. Invoke the relevant skill BEFORE imp
 - `/axiom:status` - Project health dashboard
 - `/axiom:audit` - Smart audit selector
 
+### Visual Verification
+After implementing UI changes, use Axiom to verify the code works correctly:
+- `/axiom:screenshot` - Capture screenshot from iOS Simulator
+- `/axiom:test-simulator` - Launch simulator testing agent for interactive verification
+
+**Default behavior**: Always visually verify UI code changes before considering them complete.
+
 ### Trigger Examples
 ```
 "BUILD FAILED with stale builds"     → xcode-debugging
@@ -73,16 +80,16 @@ Use Axiom skills for iOS/Swift development. Invoke the relevant skill BEFORE imp
 "Implement Liquid Glass toolbar"     → liquid-glass
 ```
 
-## Documentation: Use Context7
+## When to Verify with Context7
 
-For API documentation not covered by Axiom skills, consult Context7:
+Use Context7 to spot-check Axiom's recommendations or when you need authoritative API references:
 
-- **Supabase Swift SDK** - Backend integration (primary data source)
+- **Supabase Swift SDK** - Backend integration patterns
 - **Swift** - Language features beyond concurrency
-- **SwiftUI** - New iOS 26/macOS 26 view APIs
+- **SwiftUI** - iOS 26/macOS 26 view APIs
 - **Foundation** - Networking, data, Observation framework
 
-**Important**: If Axiom skills show API patterns that seem outdated or inconsistent, double-check with Context7 for the latest documentation. iOS 26/macOS 26 APIs are new and Context7 has authoritative, up-to-date references.
+Context7 has up-to-date references for new iOS 26/macOS 26 APIs. If something from Axiom looks unfamiliar or outdated, verify with Context7 before implementing.
 
 ## Web App Foundation
 
