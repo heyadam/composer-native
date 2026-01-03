@@ -1,0 +1,17 @@
+{
+  "name": "xcode-tools",
+  "version": "1.0.0",
+  "description": "Xcode build and test integration for Claude Code",
+  "commands": [
+    {
+      "name": "build",
+      "description": "Build the Xcode project for iOS or macOS",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/build.md"
+    },
+    {
+      "name": "test",
+      "description": "Run unit and UI tests",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/test.md"
+    }
+  ]
+}

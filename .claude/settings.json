@@ -1,5 +1,7 @@
 {
   "enabledPlugins": {
-    "supabase@claude-plugins-official": true
+    "supabase@claude-plugins-official": true,
+    "axiom@axiom-marketplace": true,
+    ".claude/plugins/xcode-tools": true
   }
 }

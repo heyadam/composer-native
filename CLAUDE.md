@@ -6,18 +6,83 @@ Universal macOS/iOS app for Composer - a visual AI workflow builder.
 - iOS 26+
 - macOS 26+
 
+## Building: Use Xcode Tools Plugin
+
+Build and test the project using these commands:
+
+```
+/build          # Build for macOS (default)
+/build ios      # Build for iOS Simulator
+/build mac      # Build for macOS
+/test           # Run all tests
+/test unit      # Run unit tests only
+/test ui        # Run UI tests only
+```
+
+On build failure:
+- **Auto-fix**: Missing imports, `await` keywords, simple typos
+- **Ask first**: Architectural changes, ambiguous fixes
+
+## Development: Use Axiom Plugin
+
+Use Axiom skills for iOS/Swift development. Invoke the relevant skill BEFORE implementing features.
+
+### Apple Intelligence & iOS 26
+- `foundation-models` - On-device AI with Foundation Models framework
+- `foundation-models-ref` - Foundation Models API reference
+- `app-intents-ref` - App Intents for Siri and Shortcuts
+- `swiftui-26-ref` - New SwiftUI APIs in iOS 26/macOS 26
+
+### UI & Design
+- `liquid-glass` - Liquid Glass effects (WWDC 2025)
+- `liquid-glass-ref` - Liquid Glass API reference
+- `hig` / `hig-ref` - Human Interface Guidelines
+- `swiftui-performance` - SwiftUI render optimization
+- `ui-testing` - UI test patterns
+- `swiftui-debugging` - Debug SwiftUI issues
+
+### Concurrency (Swift 6)
+- `swift-concurrency` - async/await, actors, @MainActor, Sendable
+- Use for ANY actor isolation errors or concurrency issues
+
+### Data & Persistence
+- **Supabase**: Use `supabase-swift` SDK and GitHub MCP server for all backend data
+- `swiftdata` - Local persistence with @Model, @Query, ModelContext
+- For migrations: Prefer Supabase migrations over Axiom database skills
+
+### Debugging
+- `xcode-debugging` - Xcode build failures, stale builds
+- `memory-debugging` - Memory leaks, retain cycles
+- `build-debugging` - Build system issues
+- `performance-profiling` - Instruments, profiling
+
+### Networking
+- `networking` / `networking-diag` - URLSession, async networking
+- `network-framework-ref` - Network.framework reference
+
+### Project Health
+- `/axiom:status` - Project health dashboard
+- `/axiom:audit` - Smart audit selector
+
+### Trigger Examples
+```
+"BUILD FAILED with stale builds"     → xcode-debugging
+"Actor isolation errors in Swift 6"  → swift-concurrency
+"Add a column to database safely"    → database-migration
+"App has memory leaks"               → memory-debugging
+"Implement Liquid Glass toolbar"     → liquid-glass
+```
+
 ## Documentation: Use Context7
 
-iOS 26 and macOS 26 documentation is very recent. Always consult Context7 for up-to-date docs when working with:
+For API documentation not covered by Axiom skills, consult Context7:
 
-- **Swift** - Language features, concurrency (async/await, actors)
-- **SwiftUI** - Views, modifiers, new iOS 26/macOS 26 APIs
+- **Supabase Swift SDK** - Backend integration (primary data source)
+- **Swift** - Language features beyond concurrency
+- **SwiftUI** - New iOS 26/macOS 26 view APIs
 - **Foundation** - Networking, data, Observation framework
-- **Combine** - Reactive patterns (where still needed)
-- **SwiftData** - Persistence (if used)
-- **Supabase Swift SDK** - Backend integration
 
-Query Context7 proactively before implementing platform APIs, especially for new iOS 26/macOS 26 features.
+**Important**: If Axiom skills show API patterns that seem outdated or inconsistent, double-check with Context7 for the latest documentation. iOS 26/macOS 26 APIs are new and Context7 has authoritative, up-to-date references.
 
 ## Web App Foundation
 
