@@ -14,6 +14,7 @@ struct TextInputNodeView: View {
     let connectionViewModel: ConnectionViewModel?
 
     @State private var text: String = ""
+    @State private var hasInitializedText = false
     @FocusState private var isFocused: Bool
 
     var body: some View {
@@ -25,9 +26,7 @@ struct TextInputNodeView: View {
             outputPorts: node.outputPorts,
             nodeId: node.id,
             canvasState: state,
-            onPortDragStart: handlePortDragStart,
-            onPortDragUpdate: handlePortDragUpdate,
-            onPortDragEnd: handlePortDragEnd
+            connectionViewModel: connectionViewModel
         ) {
             TextEditor(text: $text)
                 .font(.system(size: 13, design: .monospaced))
@@ -48,76 +47,28 @@ struct TextInputNodeView: View {
                 }
         }
         .onAppear {
-            text = viewModel?.textContent ?? ""
+            initializeTextIfNeeded()
         }
-    }
-
-    // MARK: - Port Drag Handling
-
-    private func handlePortDragStart(_ port: PortDefinition, _ isOutput: Bool, _ position: CGPoint) {
-        guard let connectionViewModel else { return }
-
-        // Use registered port position (center of circle) instead of touch location
-        let portKey = "\(node.id):\(port.id)"
-        let portScreenPosition = state.portPositions[portKey] ?? position
-
-        let connectionPoint = ConnectionPoint(
-            nodeId: node.id,
-            portId: port.id,
-            portType: port.dataType,
-            isOutput: isOutput,
-            position: state.canvasToWorld(portScreenPosition)
-        )
-
-        connectionViewModel.beginConnection(from: connectionPoint)
-        state.activeConnection = connectionPoint
-    }
-
-    private func handlePortDragUpdate(_ port: PortDefinition, _ isOutput: Bool, _ position: CGPoint) {
-        state.connectionEndPosition = position
-        connectionViewModel?.updateConnection(to: position)
-    }
-
-    private func handlePortDragEnd(_ port: PortDefinition, _ isOutput: Bool, _ position: CGPoint) {
-        defer {
-            state.activeConnection = nil
-            state.connectionEndPosition = nil
-        }
-
-        // Check if we dropped over a compatible port
-        if let hitPort = state.findPort(near: position, excludingNode: node.id) {
-            // Found a port - try to complete the connection
-            let targetPoint = ConnectionPoint(
-                nodeId: hitPort.nodeId,
-                portId: hitPort.portId,
-                portType: findPortType(nodeId: hitPort.nodeId, portId: hitPort.portId) ?? .string,
-                isOutput: !isOutput  // Target should be opposite direction
-            )
-
-            if connectionViewModel?.canConnect(to: targetPoint) == true {
-                try? connectionViewModel?.completeConnection(to: targetPoint)
-                return
+        .onChange(of: viewModel?.textContent) { _, newValue in
+            // Sync when viewModel becomes available or content changes externally
+            if !hasInitializedText, let content = newValue {
+                text = content
+                hasInitializedText = true
             }
         }
-
-        // No valid port found, cancel the connection
-        connectionViewModel?.cancelConnection()
     }
 
-    private func findPortType(nodeId: UUID, portId: String) -> PortDataType? {
-        // Search through all nodes to find the port type
-        guard let flow = node.flow else { return nil }
-        for flowNode in flow.nodes {
-            if flowNode.id == nodeId {
-                for inputPort in flowNode.inputPorts {
-                    if inputPort.id == portId { return inputPort.dataType }
-                }
-                for outputPort in flowNode.outputPorts {
-                    if outputPort.id == portId { return outputPort.dataType }
-                }
-            }
+    private func initializeTextIfNeeded() {
+        guard !hasInitializedText else { return }
+
+        // Try viewModel first, fall back to node's stored data
+        if let content = viewModel?.textContent {
+            text = content
+            hasInitializedText = true
+        } else if let storedData = node.decodeData(TextInputData.self) {
+            text = storedData.text
+            hasInitializedText = true
         }
-        return nil
     }
 }
 

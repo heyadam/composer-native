@@ -59,14 +59,16 @@ struct EdgeLayer: View {
                 let path = Self.edgePath(from: start, to: end)
                 let color = edge.dataType.color
 
-                // Draw glow for selected edges
+                // Draw glow for selected edges (in isolated layer to scope blur)
                 if isSelected {
-                    context.stroke(
-                        path,
-                        with: .color(color.opacity(0.5)),
-                        style: StrokeStyle(lineWidth: 8 * state.scale, lineCap: .round)
-                    )
-                    context.addFilter(.blur(radius: 4))
+                    context.drawLayer { glowContext in
+                        glowContext.addFilter(.blur(radius: 4))
+                        glowContext.stroke(
+                            path,
+                            with: .color(color.opacity(0.5)),
+                            style: StrokeStyle(lineWidth: 8 * state.scale, lineCap: .round)
+                        )
+                    }
                 }
 
                 // Draw main edge
@@ -98,8 +100,6 @@ struct EdgeLayer: View {
 
     /// Calculate distance from a point to the edge bezier curve (for hit testing)
     static func distanceToEdge(from point: CGPoint, edgeStart: CGPoint, edgeEnd: CGPoint) -> CGFloat {
-        let path = edgePath(from: edgeStart, to: edgeEnd)
-
         // Sample points along the bezier and find minimum distance
         var minDistance: CGFloat = .infinity
         let sampleCount = 20
@@ -131,6 +131,70 @@ struct EdgeLayer: View {
         let y = mt3 * start.y + 3 * mt2 * t * control1.y + 3 * mt * t2 * control2.y + t3 * end.y
 
         return CGPoint(x: x, y: y)
+    }
+}
+
+// MARK: - Edge Hit Testing Layer
+
+struct EdgeHitTestingLayer: View {
+    let edges: [FlowEdge]
+    let state: CanvasState
+    let viewModel: FlowCanvasViewModel?
+
+    private let hitTolerance: CGFloat = 8
+
+    var body: some View {
+        GeometryReader { geometry in
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture { location in
+                    handleTap(at: location)
+                }
+        }
+    }
+
+    private func handleTap(at location: CGPoint) {
+        for edge in edges {
+            guard let sourceNode = edge.sourceNode,
+                  let targetNode = edge.targetNode else { continue }
+
+            let sourcePortKey = "\(sourceNode.id):\(edge.sourceHandle)"
+            let targetPortKey = "\(targetNode.id):\(edge.targetHandle)"
+
+            let start: CGPoint
+            let end: CGPoint
+
+            if let sourcePos = state.portPositions[sourcePortKey],
+               let targetPos = state.portPositions[targetPortKey] {
+                start = sourcePos
+                end = targetPos
+            } else {
+                // Fallback
+                let sourcePosition = viewModel?.displayPosition(for: sourceNode.id) ?? sourceNode.position
+                let targetPosition = viewModel?.displayPosition(for: targetNode.id) ?? targetNode.position
+
+                let sourcePortOffset = CGPoint(x: 100, y: 50)
+                let targetPortOffset = CGPoint(x: 0, y: 50)
+
+                let startWorld = CGPoint(
+                    x: sourcePosition.x + sourcePortOffset.x,
+                    y: sourcePosition.y + sourcePortOffset.y
+                )
+                let endWorld = CGPoint(
+                    x: targetPosition.x + targetPortOffset.x,
+                    y: targetPosition.y + targetPortOffset.y
+                )
+
+                start = CoordinateTransform.worldToScreen(startWorld, offset: state.offset, scale: state.scale)
+                end = CoordinateTransform.worldToScreen(endWorld, offset: state.offset, scale: state.scale)
+            }
+
+            let distance = EdgeLayer.distanceToEdge(from: location, edgeStart: start, edgeEnd: end)
+            if distance < hitTolerance * state.scale {
+                state.selectEdge(edge.id)
+                return
+            }
+        }
     }
 }
 

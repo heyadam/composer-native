@@ -8,6 +8,10 @@
 import SwiftUI
 import SwiftData
 
+#if os(iOS)
+import UIKit
+#endif
+
 /// Named coordinate space for the canvas
 enum CanvasCoordinateSpace {
     static let name = "flowCanvas"
@@ -40,6 +44,13 @@ struct FlowCanvasView: View {
                     viewModel: viewModel
                 )
                 .allowsHitTesting(false)
+
+                // Edge hit testing layer
+                EdgeHitTestingLayer(
+                    edges: flow.edges,
+                    state: canvasState,
+                    viewModel: viewModel
+                )
 
                 // Connection preview
                 ConnectionPreview(
@@ -83,6 +94,8 @@ struct FlowCanvasView: View {
                     let newScale = canvasState.scale * zoomDelta
                     canvasState.zoom(to: newScale, anchor: location)
                     lastScale = canvasState.scale
+                    // Sync pan offset to prevent jump on next pan
+                    lastPanOffset = canvasState.offset
                 }
             }
         )
@@ -111,17 +124,86 @@ struct FlowCanvasView: View {
                 let anchor = value.startLocation
                 let newScale = lastScale * value.magnification
                 canvasState.zoom(to: newScale, anchor: anchor)
+                // Sync pan offset to prevent jump on next pan
+                lastPanOffset = canvasState.offset
             }
             .onEnded { _ in
                 lastScale = canvasState.scale
+                // Ensure pan offset is synced after zoom completes
+                lastPanOffset = canvasState.offset
             }
     }
 
     private var canvasTapGesture: some Gesture {
-        TapGesture()
-            .onEnded {
-                canvasState.clearSelection()
+        SpatialTapGesture(coordinateSpace: .named(CanvasCoordinateSpace.name))
+            .onEnded { value in
+                // Only clear selection if we didn't tap on a node or edge
+                // Nodes handle their own selection, so we only clear if tapping empty canvas
+                let tappedNode = hitTestNode(at: value.location)
+                let tappedEdge = hitTestEdge(at: value.location)
+
+                if tappedNode == nil && tappedEdge == nil {
+                    canvasState.clearSelection()
+                    dismissKeyboard()
+                }
             }
+    }
+
+    private func hitTestNode(at location: CGPoint) -> UUID? {
+        for node in flow.nodes {
+            let worldPos = viewModel?.displayPosition(for: node.id) ?? node.position
+            let screenPos = CoordinateTransform.worldToScreen(worldPos, offset: canvasState.offset, scale: canvasState.scale)
+
+            // Approximate node bounds (scaled)
+            let nodeWidth: CGFloat = 220 * canvasState.scale
+            let nodeHeight: CGFloat = 150 * canvasState.scale
+            let nodeRect = CGRect(
+                x: screenPos.x - nodeWidth / 2,
+                y: screenPos.y - nodeHeight / 2,
+                width: nodeWidth,
+                height: nodeHeight
+            )
+
+            if nodeRect.contains(location) {
+                return node.id
+            }
+        }
+        return nil
+    }
+
+    private func hitTestEdge(at location: CGPoint) -> UUID? {
+        for edge in flow.edges {
+            guard let sourceNode = edge.sourceNode,
+                  let targetNode = edge.targetNode else { continue }
+
+            let sourcePortKey = "\(sourceNode.id):\(edge.sourceHandle)"
+            let targetPortKey = "\(targetNode.id):\(edge.targetHandle)"
+
+            let start: CGPoint
+            let end: CGPoint
+
+            if let sourcePos = canvasState.portPositions[sourcePortKey],
+               let targetPos = canvasState.portPositions[targetPortKey] {
+                start = sourcePos
+                end = targetPos
+            } else {
+                continue
+            }
+
+            let distance = EdgeLayer.distanceToEdge(from: location, edgeStart: start, edgeEnd: end)
+            if distance < 8 * canvasState.scale {
+                return edge.id
+            }
+        }
+        return nil
+    }
+
+    private func dismissKeyboard() {
+        #if os(iOS)
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        #else
+        NSApp.keyWindow?.makeFirstResponder(nil)
+        #endif
     }
 
     // MARK: - Actions

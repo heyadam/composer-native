@@ -44,10 +44,20 @@ final class CanvasState {
     /// Registered port positions (key: "nodeId:portId", value: screen position)
     var portPositions: [String: CGPoint] = [:]
 
-    /// Register a port's screen position
+    /// Registered port data types (key: "nodeId:portId", value: data type)
+    var portDataTypes: [String: PortDataType] = [:]
+
+    /// Register a port's screen position and data type
     func registerPort(nodeId: UUID, portId: String, isOutput: Bool, dataType: PortDataType, position: CGPoint) {
         let key = "\(nodeId):\(portId)"
         portPositions[key] = position
+        portDataTypes[key] = dataType
+    }
+
+    /// Get the data type for a registered port
+    func portDataType(nodeId: UUID, portId: String) -> PortDataType? {
+        let key = "\(nodeId):\(portId)"
+        return portDataTypes[key]
     }
 
     /// Find a port near the given screen position

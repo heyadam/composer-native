@@ -22,14 +22,21 @@ struct NodeContainerView: View {
             .scaleEffect(state.scale)
             .background(
                 GeometryReader { geometry in
-                    Color.clear.onAppear {
-                        nodeViewModel?.updateMeasuredSize(geometry.size)
-                    }
+                    Color.clear
+                        .onAppear {
+                            nodeViewModel?.updateMeasuredSize(geometry.size)
+                        }
+                        .onChange(of: geometry.size) { _, newSize in
+                            nodeViewModel?.updateMeasuredSize(newSize)
+                        }
                 }
             )
             .position(screenPosition)
             .gesture(nodeDragGesture)
             .simultaneousGesture(nodeTapGesture)
+            #if os(iOS)
+            .simultaneousGesture(nodeLongPressGesture)
+            #endif
             .overlay(selectionOverlay)
             .contextMenu {
                 Button(role: .destructive) {
@@ -94,7 +101,7 @@ struct NodeContainerView: View {
     // MARK: - Gestures
 
     private var nodeDragGesture: some Gesture {
-        DragGesture(coordinateSpace: .global)
+        DragGesture(coordinateSpace: .named(CanvasCoordinateSpace.name))
             .onChanged { value in
                 // Don't drag if a connection drag is active
                 if state.activeConnection != nil {
@@ -105,6 +112,7 @@ struct NodeContainerView: View {
                 // On first touch, check if we started on a port
                 if lastDragPosition == .zero && !ignoringCurrentDrag {
                     // Check if drag started on a port (should be handled by port gesture instead)
+                    // Now using same coordinate space as port positions
                     if state.findPort(near: value.startLocation, excludingNode: nil) != nil {
                         ignoringCurrentDrag = true
                         return
@@ -163,6 +171,15 @@ struct NodeContainerView: View {
                 #endif
             }
     }
+
+    #if os(iOS)
+    private var nodeLongPressGesture: some Gesture {
+        LongPressGesture(minimumDuration: 0.5)
+            .onEnded { _ in
+                state.toggleNodeSelection(node.id)
+            }
+    }
+    #endif
 }
 
 #Preview {

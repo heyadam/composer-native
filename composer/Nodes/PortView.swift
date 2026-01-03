@@ -12,12 +12,11 @@ struct PortView: View {
     let isOutput: Bool
     let nodeId: UUID?
     let canvasState: CanvasState?
-    let onDragStart: ((CGPoint) -> Void)?
-    let onDragUpdate: ((CGPoint) -> Void)?
-    let onDragEnd: ((CGPoint) -> Void)?
+    let connectionViewModel: ConnectionViewModel?
 
     @State private var isHovered = false
     @State private var isDragging = false
+    @State private var showConnectionError = false
 
     /// Port circle size
     private let normalSize: CGFloat = 14
@@ -40,6 +39,7 @@ struct PortView: View {
         .padding(.horizontal, 2)
         .contentShape(Rectangle())
         .highPriorityGesture(connectionDragGesture)
+        .offset(x: showConnectionError ? -4 : 0)
     }
 
     private var portLabel: some View {
@@ -92,16 +92,74 @@ struct PortView: View {
     private var connectionDragGesture: some Gesture {
         DragGesture(coordinateSpace: .named(CanvasCoordinateSpace.name))
             .onChanged { value in
+                guard let canvasState, let connectionViewModel, let nodeId else { return }
+
                 if !isDragging {
                     isDragging = true
-                    onDragStart?(value.startLocation)
+
+                    // Use registered port position (center of circle) instead of touch location
+                    let portKey = "\(nodeId):\(port.id)"
+                    let portScreenPosition = canvasState.portPositions[portKey] ?? value.startLocation
+
+                    let sourcePoint = ConnectionPoint(
+                        nodeId: nodeId,
+                        portId: port.id,
+                        portType: port.dataType,
+                        isOutput: isOutput,
+                        position: canvasState.canvasToWorld(portScreenPosition)
+                    )
+
+                    connectionViewModel.beginConnection(from: sourcePoint)
+                    canvasState.activeConnection = sourcePoint
                 }
-                onDragUpdate?(value.location)
+
+                canvasState.connectionEndPosition = value.location
+                connectionViewModel.updateConnection(to: value.location)
             }
             .onEnded { value in
-                isDragging = false
-                onDragEnd?(value.location)
+                defer {
+                    isDragging = false
+                    canvasState?.activeConnection = nil
+                    canvasState?.connectionEndPosition = nil
+                }
+
+                guard let canvasState, let connectionViewModel, let nodeId else { return }
+
+                // Check if we dropped over a compatible port
+                if let hitPort = canvasState.findPort(near: value.location, excludingNode: nodeId) {
+                    // Get the data type from registry (O(1) lookup)
+                    let targetDataType = canvasState.portDataType(nodeId: hitPort.nodeId, portId: hitPort.portId) ?? .string
+
+                    let targetPoint = ConnectionPoint(
+                        nodeId: hitPort.nodeId,
+                        portId: hitPort.portId,
+                        portType: targetDataType,
+                        isOutput: !isOutput  // Target should be opposite direction
+                    )
+
+                    if connectionViewModel.canConnect(to: targetPoint) {
+                        do {
+                            try connectionViewModel.completeConnection(to: targetPoint)
+                            return
+                        } catch {
+                            triggerErrorFeedback()
+                        }
+                    } else {
+                        triggerErrorFeedback()
+                    }
+                }
+
+                connectionViewModel.cancelConnection()
             }
+    }
+
+    private func triggerErrorFeedback() {
+        withAnimation(.default.repeatCount(3, autoreverses: true)) {
+            showConnectionError = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            showConnectionError = false
+        }
     }
 }
 
@@ -117,9 +175,7 @@ struct PortView: View {
                 isOutput: false,
                 nodeId: nil,
                 canvasState: nil,
-                onDragStart: nil,
-                onDragUpdate: nil,
-                onDragEnd: nil
+                connectionViewModel: nil
             )
 
             PortView(
@@ -127,9 +183,7 @@ struct PortView: View {
                 isOutput: true,
                 nodeId: nil,
                 canvasState: nil,
-                onDragStart: nil,
-                onDragUpdate: nil,
-                onDragEnd: nil
+                connectionViewModel: nil
             )
 
             PortView(
@@ -137,9 +191,7 @@ struct PortView: View {
                 isOutput: false,
                 nodeId: nil,
                 canvasState: nil,
-                onDragStart: nil,
-                onDragUpdate: nil,
-                onDragEnd: nil
+                connectionViewModel: nil
             )
         }
         .padding()

@@ -41,9 +41,7 @@ struct NodeFrame<Content: View>: View {
     let outputPorts: [PortDefinition]
     let nodeId: UUID?
     let canvasState: CanvasState?
-    let onPortDragStart: ((PortDefinition, Bool, CGPoint) -> Void)?
-    let onPortDragUpdate: ((PortDefinition, Bool, CGPoint) -> Void)?
-    let onPortDragEnd: ((PortDefinition, Bool, CGPoint) -> Void)?
+    let connectionViewModel: ConnectionViewModel?
     @ViewBuilder let content: () -> Content
 
     init(
@@ -54,9 +52,7 @@ struct NodeFrame<Content: View>: View {
         outputPorts: [PortDefinition] = [],
         nodeId: UUID? = nil,
         canvasState: CanvasState? = nil,
-        onPortDragStart: ((PortDefinition, Bool, CGPoint) -> Void)? = nil,
-        onPortDragUpdate: ((PortDefinition, Bool, CGPoint) -> Void)? = nil,
-        onPortDragEnd: ((PortDefinition, Bool, CGPoint) -> Void)? = nil,
+        connectionViewModel: ConnectionViewModel? = nil,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.icon = icon
@@ -66,9 +62,7 @@ struct NodeFrame<Content: View>: View {
         self.outputPorts = outputPorts
         self.nodeId = nodeId
         self.canvasState = canvasState
-        self.onPortDragStart = onPortDragStart
-        self.onPortDragUpdate = onPortDragUpdate
-        self.onPortDragEnd = onPortDragEnd
+        self.connectionViewModel = connectionViewModel
         self.content = content
     }
 
@@ -105,15 +99,7 @@ struct NodeFrame<Content: View>: View {
                                 isOutput: false,
                                 nodeId: nodeId,
                                 canvasState: canvasState,
-                                onDragStart: { position in
-                                    onPortDragStart?(port, false, position)
-                                },
-                                onDragUpdate: { position in
-                                    onPortDragUpdate?(port, false, position)
-                                },
-                                onDragEnd: { position in
-                                    onPortDragEnd?(port, false, position)
-                                }
+                                connectionViewModel: connectionViewModel
                             )
                         }
                     }
@@ -128,15 +114,7 @@ struct NodeFrame<Content: View>: View {
                                 isOutput: true,
                                 nodeId: nodeId,
                                 canvasState: canvasState,
-                                onDragStart: { position in
-                                    onPortDragStart?(port, true, position)
-                                },
-                                onDragUpdate: { position in
-                                    onPortDragUpdate?(port, true, position)
-                                },
-                                onDragEnd: { position in
-                                    onPortDragEnd?(port, true, position)
-                                }
+                                connectionViewModel: connectionViewModel
                             )
                         }
                     }

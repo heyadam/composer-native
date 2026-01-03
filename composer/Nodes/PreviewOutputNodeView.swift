@@ -22,9 +22,7 @@ struct PreviewOutputNodeView: View {
             outputPorts: node.outputPorts,
             nodeId: node.id,
             canvasState: state,
-            onPortDragStart: handlePortDragStart,
-            onPortDragUpdate: handlePortDragUpdate,
-            onPortDragEnd: handlePortDragEnd
+            connectionViewModel: connectionViewModel
         ) {
             previewContent
         }
@@ -39,8 +37,8 @@ struct PreviewOutputNodeView: View {
                 .frame(minHeight: 80, maxHeight: 160)
                 .overlay {
                     // Show preview based on connected inputs
-                    if let connectedData = getConnectedData() {
-                        connectedDataView(connectedData)
+                    if let previewData = getConnectedData() {
+                        connectedDataView(previewData)
                     } else {
                         Text("No input connected")
                             .font(.system(size: 12))
@@ -51,16 +49,26 @@ struct PreviewOutputNodeView: View {
     }
 
     @ViewBuilder
-    private func connectedDataView(_ data: PreviewData) -> some View {
+    private func connectedDataView(_ data: [PreviewData]) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(Array(data.enumerated()), id: \.offset) { _, item in
+                    previewItemView(item)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+        }
+    }
+
+    @ViewBuilder
+    private func previewItemView(_ data: PreviewData) -> some View {
         switch data {
         case .text(let string):
-            ScrollView {
-                Text(string)
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
-            }
+            Text(string)
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
         case .image(let image):
             #if os(macOS)
@@ -68,19 +76,17 @@ struct PreviewOutputNodeView: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .clipShape(RoundedRectangle(cornerRadius: 4))
-                .padding(4)
             #else
             Image(uiImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .clipShape(RoundedRectangle(cornerRadius: 4))
-                .padding(4)
             #endif
 
         case .audio:
-            VStack(spacing: 4) {
+            HStack(spacing: 8) {
                 Image(systemName: "waveform")
-                    .font(.system(size: 24))
+                    .font(.system(size: 16))
                     .foregroundStyle(.secondary)
                 Text("Audio")
                     .font(.system(size: 11))
@@ -89,91 +95,38 @@ struct PreviewOutputNodeView: View {
         }
     }
 
-    /// Get connected data from incoming edges
-    private func getConnectedData() -> PreviewData? {
-        // Check incoming edges for connected data
-        guard let incomingEdge = node.incomingEdges.first,
-              let sourceNode = incomingEdge.sourceNode else {
-            return nil
-        }
+    /// Get connected data from all incoming edges
+    private func getConnectedData() -> [PreviewData]? {
+        var results: [PreviewData] = []
 
-        // For now, just return sample text if connected to text input
-        if sourceNode.nodeType == .textInput {
-            let textData = sourceNode.decodeData(TextInputData.self)
-            if let text = textData?.text, !text.isEmpty {
-                return .text(text)
-            }
-        }
+        // Check all incoming edges for connected data
+        for edge in node.incomingEdges {
+            guard let sourceNode = edge.sourceNode else { continue }
 
-        return nil
-    }
-
-    // MARK: - Port Drag Handling
-
-    private func handlePortDragStart(_ port: PortDefinition, _ isOutput: Bool, _ position: CGPoint) {
-        guard let connectionViewModel else { return }
-
-        // Use registered port position (center of circle) instead of touch location
-        let portKey = "\(node.id):\(port.id)"
-        let portScreenPosition = state.portPositions[portKey] ?? position
-
-        let connectionPoint = ConnectionPoint(
-            nodeId: node.id,
-            portId: port.id,
-            portType: port.dataType,
-            isOutput: isOutput,
-            position: state.canvasToWorld(portScreenPosition)
-        )
-
-        connectionViewModel.beginConnection(from: connectionPoint)
-        state.activeConnection = connectionPoint
-    }
-
-    private func handlePortDragUpdate(_ port: PortDefinition, _ isOutput: Bool, _ position: CGPoint) {
-        state.connectionEndPosition = position
-        connectionViewModel?.updateConnection(to: position)
-    }
-
-    private func handlePortDragEnd(_ port: PortDefinition, _ isOutput: Bool, _ position: CGPoint) {
-        defer {
-            state.activeConnection = nil
-            state.connectionEndPosition = nil
-        }
-
-        // Check if we dropped over a compatible port
-        if let hitPort = state.findPort(near: position, excludingNode: node.id) {
-            // Found a port - try to complete the connection
-            let targetPoint = ConnectionPoint(
-                nodeId: hitPort.nodeId,
-                portId: hitPort.portId,
-                portType: findPortType(nodeId: hitPort.nodeId, portId: hitPort.portId) ?? .string,
-                isOutput: !isOutput  // Target should be opposite direction
-            )
-
-            if connectionViewModel?.canConnect(to: targetPoint) == true {
-                try? connectionViewModel?.completeConnection(to: targetPoint)
-                return
-            }
-        }
-
-        // No valid port found, cancel the connection
-        connectionViewModel?.cancelConnection()
-    }
-
-    private func findPortType(nodeId: UUID, portId: String) -> PortDataType? {
-        // Search through all nodes to find the port type
-        guard let flow = node.flow else { return nil }
-        for flowNode in flow.nodes {
-            if flowNode.id == nodeId {
-                for inputPort in flowNode.inputPorts {
-                    if inputPort.id == portId { return inputPort.dataType }
+            switch edge.dataType {
+            case .string:
+                if sourceNode.nodeType == .textInput {
+                    let textData = sourceNode.decodeData(TextInputData.self)
+                    if let text = textData?.text, !text.isEmpty {
+                        results.append(.text(text))
+                    }
                 }
-                for outputPort in flowNode.outputPorts {
-                    if outputPort.id == portId { return outputPort.dataType }
-                }
+
+            case .image:
+                // Placeholder for image data
+                break
+
+            case .audio:
+                // Placeholder for audio data
+                results.append(.audio)
+
+            case .pulse:
+                // Pulse is a trigger signal, no preview content
+                break
             }
         }
-        return nil
+
+        return results.isEmpty ? nil : results
     }
 }
 
