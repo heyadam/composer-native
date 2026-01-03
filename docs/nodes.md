@@ -1,4 +1,4 @@
-# SwiftUI Canvas View Implementation Plan
+# SwiftUI Canvas View Implementation Plan ✅ COMPLETED
 
 ## Overview
 
@@ -59,7 +59,7 @@ composer/
 
 ## Implementation Steps
 
-### Phase 1: Data Models
+### Phase 1: Data Models ✅ COMPLETED
 
 **Files to create:**
 
@@ -180,7 +180,7 @@ composer/
    - Port IDs are stable string constants (never reorder/rename)
    - Survives schema versioning - edges reference IDs, not indices
 
-### Phase 2: ViewModels
+### Phase 2: ViewModels ✅ COMPLETED
 
 **Files to create:**
 
@@ -233,7 +233,7 @@ composer/
    - Validates port compatibility
    - Provides compatible port highlighting
 
-### Phase 3: Canvas Foundation
+### Phase 3: Canvas Foundation ✅ COMPLETED
 
 **Files to create:**
 
@@ -354,7 +354,7 @@ composer/
    }
    ```
 
-### Phase 4: Edge Rendering
+### Phase 4: Edge Rendering ✅ COMPLETED
 
 **Files to create:**
 
@@ -383,7 +383,7 @@ composer/
    }
    ```
 
-### Phase 5: Node Views
+### Phase 5: Node Views ✅ COMPLETED
 
 **Files to create:**
 
@@ -447,7 +447,7 @@ composer/
    - Multiple input ports (string, image, audio)
    - Display area for previewing connected data
 
-### Phase 6: Gesture System
+### Phase 6: Gesture System ✅ COMPLETED
 
 **Gesture Priority & Conflict Resolution:**
 
@@ -504,17 +504,36 @@ composer/
 
 3. `composer/Gestures/CanvasZoomGesture.swift`
    ```swift
-   /// Zoom anchored to gesture centroid (trackpad) or pinch center (touch)
-   MagnifyGesture()
-       .onChanged { value in
-           // macOS trackpad: anchor to cursor position
-           // iOS: anchor to pinch midpoint
-           let anchor = value.startLocation
-           canvasState.zoom(to: canvasState.scale * value.magnification, anchor: anchor)
+   /// iOS: MagnifyGesture (pinch) - applied as .simultaneousGesture to avoid conflicts
+   .simultaneousGesture(
+       MagnifyGesture()
+           .onChanged { value in
+               let anchor = value.startLocation
+               canvasState.zoom(to: lastScale * value.magnification, anchor: anchor)
+           }
+           .onEnded { _ in
+               lastScale = canvasState.scale
+           }
+   )
+
+   /// macOS: Option + scroll wheel via NSViewRepresentable
+   #if os(macOS)
+   .background(
+       ScrollWheelModifier { delta, location in
+           if NSEvent.modifierFlags.contains(.option) {
+               let zoomDelta = 1.0 + (delta * 0.01)
+               let newScale = canvasState.scale * zoomDelta
+               canvasState.zoom(to: newScale, anchor: location)
+               lastScale = canvasState.scale
+           }
        }
+   )
+   #endif
    ```
    - Scale clamped to `0.25...2.0`
    - Anchor point stays fixed on screen during zoom
+   - **iOS**: Pinch gesture (MagnifyGesture)
+   - **macOS**: Option + scroll wheel (ScrollWheelModifier NSViewRepresentable)
    - **Disabled** when `canvasState.isEditingNode == true`
 
 4. `composer/Gestures/NodeDragGesture.swift`
@@ -553,7 +572,7 @@ composer/
    }
    ```
 
-### Phase 7: Accessibility
+### Phase 7: Accessibility ✅ COMPLETED
 
 **Files to create:**
 
@@ -577,7 +596,7 @@ composer/
    - Announce selection changes
    - Describe connections
 
-### Phase 8: Integration
+### Phase 8: Integration ✅ COMPLETED
 
 **Files to modify:**
 
@@ -664,15 +683,23 @@ extension PortDataType {
 }
 ```
 
-### Node Styling (Liquid Glass - iOS 26+)
+### Node Styling (Solid Background - iOS 26+)
 ```swift
-// Primary approach - use system glass
-.glassEffect()
-
-// Fallback for custom glass (if needed)
-.background(.ultraThinMaterial)
-.clipShape(RoundedRectangle(cornerRadius: 14))
+// NOTE: Liquid Glass (.ultraThinMaterial, .glassEffect) causes errors when used
+// with transformed views (scale, offset). Use solid semi-transparent background:
+.background {
+    RoundedRectangle(cornerRadius: 14)
+        .fill(Color(white: 0.15, opacity: 0.85))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
+        }
+}
 .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
+
+// ⚠️ AVOID: These cause "_UIGravityWellEffectAnchorView" errors on transformed views:
+// .glassEffect()
+// .background(.ultraThinMaterial)
 ```
 
 ### Bezier Edge Path
@@ -691,9 +718,49 @@ func edgePath(from start: CGPoint, to end: CGPoint) -> Path {
 ```
 
 ### Gesture Priority
-1. Port drag (highest) - starts connection
-2. Node drag - moves node (transient state)
-3. Canvas drag (lowest) - pans viewport
+1. Port drag (highest) - starts connection via `.highPriorityGesture` on port HStack
+2. Node drag - moves node (transient state) via `.gesture`
+3. Canvas pan/zoom (lowest) - `.gesture` + `.simultaneousGesture`
+
+### Port Position Registry
+Ports register their screen positions for accurate edge rendering:
+```swift
+// In PortView - register port circle position via GeometryReader
+.background(
+    GeometryReader { geometry in
+        Color.clear
+            .onAppear {
+                let frame = geometry.frame(in: .named(CanvasCoordinateSpace.name))
+                canvasState.registerPort(
+                    nodeId: nodeId,
+                    portId: port.id,
+                    isOutput: isOutput,
+                    dataType: port.dataType,
+                    position: CGPoint(x: frame.midX, y: frame.midY)
+                )
+            }
+            .onChange(of: geometry.frame(in: .named(CanvasCoordinateSpace.name))) { _, frame in
+                // Update on position change (node drag, zoom, etc.)
+                registerCirclePosition(frame)
+            }
+    }
+)
+```
+
+### Named Coordinate Space
+All position tracking uses a named coordinate space for consistency:
+```swift
+enum CanvasCoordinateSpace {
+    static let name = "flowCanvas"
+}
+
+// Applied to canvas ZStack
+.coordinateSpace(name: CanvasCoordinateSpace.name)
+
+// Used by DragGesture and GeometryReader
+DragGesture(coordinateSpace: .named(CanvasCoordinateSpace.name))
+geometry.frame(in: .named(CanvasCoordinateSpace.name))
+```
 
 ### Transient Drag Pattern
 ```swift
@@ -802,7 +869,12 @@ func onDragEnded(_ value: DragGesture.Value) {
 | Width/height persisted? | **No** - measured dynamically via `onGeometryChange()`, cached in `NodeViewModel.measuredSize`. Avoids stale data when content changes. |
 | Edge selection in MVP? | **Yes** - single edge selection with Delete key (macOS) or context menu (iOS). |
 | Port ID stability? | **Yes** - explicit string constants in `PortID` enum. Never rename or reorder. Edges reference by ID, not index. |
-| macOS trackpad zoom? | Anchored to cursor position via `MagnifyGesture.startLocation`. Scale clamped 0.25–2.0. |
+| macOS trackpad zoom? | **Option + scroll wheel** via `ScrollWheelModifier` (NSViewRepresentable). MagnifyGesture also available for trackpad pinch. |
+| iOS zoom? | **Pinch gesture** via `MagnifyGesture` applied as `.simultaneousGesture` to avoid conflicts with pan. |
+| Node scaling? | **Yes** - `.scaleEffect(state.scale)` applied to node content in NodeContainerView. |
+| Port position tracking? | **Yes** - ports register positions via `CanvasState.portPositions` using named coordinate space. EdgeLayer reads from registry. |
+| Liquid Glass on nodes? | **No** - causes `_UIGravityWellEffectAnchorView` errors with transformed views. Using solid semi-transparent background instead. |
+| Coordinate space? | **Named** - `CanvasCoordinateSpace.name` ("flowCanvas") used by all gestures and GeometryReader for consistency. |
 
 ---
 

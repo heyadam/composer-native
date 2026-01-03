@@ -129,3 +129,34 @@ This file is the authoritative reference for all backend integration work.
 - Use native WebRTC for realtime voice (get ephemeral token from API)
 - Consider Core Data or SwiftData for offline flow caching
 - Implement Universal Links for `composer.design/f/[liveId]/[token]`
+
+## Canvas Implementation
+
+The flow canvas is implemented with SwiftUI and supports:
+
+### Architecture
+- **FlowCanvasView**: Main container with ZStack layers (grid → edges → preview → nodes)
+- **CanvasState**: `@Observable` state for transform, selection, and connection tracking
+- **Port Position Registry**: Ports register their screen positions via `CanvasState.portPositions`
+- **Named Coordinate Space**: All gestures and positions use `CanvasCoordinateSpace.name`
+
+### Gestures
+- **Pan**: DragGesture on canvas background
+- **Zoom (iOS)**: MagnifyGesture (pinch) - uses `.simultaneousGesture` to avoid conflicts
+- **Zoom (macOS)**: Option + scroll wheel via `ScrollWheelModifier` (NSViewRepresentable)
+- **Node Drag**: DragGesture with transient position updates (commits to SwiftData on end)
+- **Port Connection**: `.highPriorityGesture` on port HStack to win over node drag
+
+### Key Files
+- `Canvas/FlowCanvasView.swift` - Main canvas, coordinate space, macOS scroll handler
+- `Canvas/CanvasState.swift` - Transform state, port registry, selection
+- `Canvas/EdgeLayer.swift` - Bezier edge rendering using registered port positions
+- `Canvas/ConnectionPreview.swift` - Dashed line during connection drag
+- `Nodes/PortView.swift` - Port circles with position registration
+- `Nodes/NodeContainerView.swift` - Node wrapper with `.scaleEffect(state.scale)`
+
+### Known Patterns
+- Nodes scale with canvas via `.scaleEffect(state.scale)` on node content
+- Edge positions come from `state.portPositions["\(nodeId):\(portId)"]`
+- Port positions registered via GeometryReader in named coordinate space
+- iOS 26 Liquid Glass avoided on transformed views (causes `_UIGravityWellEffectAnchorView` errors)

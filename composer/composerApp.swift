@@ -10,23 +10,30 @@ import SwiftData
 
 @main
 struct composerApp: App {
-    var sharedModelContainer: ModelContainer = {
+    let container: ModelContainer
+
+    init() {
         let schema = Schema([
-            Item.self,
+            Flow.self,
+            FlowNode.self,
+            FlowEdge.self
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        let config = ModelConfiguration(isStoredInMemoryOnly: false)
 
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            container = try ModelContainer(for: schema, configurations: config)
+
+            // Enable undo support
+            container.mainContext.undoManager = UndoManager()
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
-    }()
+    }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
         }
-        .modelContainer(sharedModelContainer)
+        .modelContainer(container)
     }
 }
