@@ -2,7 +2,7 @@
 //  DebugLogger.swift
 //  composer
 //
-//  Centralized debug logging that writes to a file Claude can read
+//  Centralized debug logging that writes to a file Claude can read (macOS only)
 //
 
 import Foundation
@@ -16,6 +16,8 @@ enum LogCategory: String {
     case event = "EVENT"
 }
 
+#if os(macOS)
+
 /// Centralized debug logger that writes to ~/Library/Logs/Composer/debug.log
 @MainActor
 final class DebugLogger {
@@ -27,7 +29,6 @@ final class DebugLogger {
 
     private init() {
         // Set up log file path - use app's container for sandbox compatibility
-        // Try Application Support first (sandboxed), fall back to ~/Library/Logs (non-sandboxed dev)
         let logsDir: URL
         if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
             logsDir = appSupport.appendingPathComponent("Composer/Logs")
@@ -265,3 +266,26 @@ final class DebugLogger {
         }
     }
 }
+
+#else
+
+/// No-op debug logger for iOS (debugging only supported on macOS)
+@MainActor
+final class DebugLogger {
+    static let shared = DebugLogger()
+
+    var logFilePath: String { "" }
+
+    func log(_ category: LogCategory, _ message: String) {}
+    func logFlowState(_ flow: Flow) {}
+    func logExecutionStart(flowName: String, nodeCount: Int) {}
+    func logExecutionComplete(flowName: String, duration: TimeInterval, nodeResults: [String]) {}
+    func logNodeExecution(label: String, type: String, status: String, output: String?, error: String?, duration: TimeInterval?) {}
+    func logAPIRequest(url: URL, method: String, body: [String: Any]) {}
+    func logAPIResponse(statusCode: Int, contentType: String) {}
+    func logAPIEvent(_ event: String) {}
+    func logError(_ error: Error, context: String) {}
+    func logEvent(_ message: String) {}
+}
+
+#endif
