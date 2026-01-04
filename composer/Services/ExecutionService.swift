@@ -27,7 +27,11 @@ actor ExecutionService {
                 do {
                     // Get API key for provider
                     guard let apiKey = await APIKeyStorage.shared.getKey(for: provider) else {
-                        continuation.yield(.error("No API key configured for \(provider). Add it in Settings."))
+                        let errorMsg = "No API key configured for \(provider). Add it in Settings."
+                        await MainActor.run {
+                            DebugLogger.shared.log(.error, errorMsg)
+                        }
+                        continuation.yield(.error(errorMsg))
                         continuation.finish()
                         return
                     }
@@ -44,6 +48,11 @@ actor ExecutionService {
                     ]
 
                     let jsonData = try JSONSerialization.data(withJSONObject: body)
+
+                    // Log API request (redacting keys)
+                    await MainActor.run {
+                        DebugLogger.shared.logAPIRequest(url: self.baseURL, method: "POST", body: body)
+                    }
 
                     // Create request with timeout
                     var request = URLRequest(url: baseURL)
@@ -62,7 +71,11 @@ actor ExecutionService {
                     }
 
                     guard httpResponse.statusCode == 200 else {
-                        continuation.yield(.error("API error: HTTP \(httpResponse.statusCode)"))
+                        let errorMsg = "API error: HTTP \(httpResponse.statusCode)"
+                        await MainActor.run {
+                            DebugLogger.shared.log(.error, errorMsg)
+                        }
+                        continuation.yield(.error(errorMsg))
                         continuation.finish()
                         return
                     }
@@ -72,6 +85,11 @@ actor ExecutionService {
                     // - Plain text: Vercel AI SDK toTextStreamResponse() format, raw text chunks
                     let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type") ?? ""
                     let isNDJSON = contentType.contains("ndjson") || contentType.contains("json")
+
+                    // Log API response
+                    await MainActor.run {
+                        DebugLogger.shared.logAPIResponse(statusCode: httpResponse.statusCode, contentType: contentType)
+                    }
 
                     if isNDJSON {
                         // Parse NDJSON stream (used by image generation, Google thinking, etc.)
@@ -95,13 +113,26 @@ actor ExecutionService {
                             allText += line + "\n"
                         }
                         if !allText.isEmpty {
-                            continuation.yield(.text(allText.trimmingCharacters(in: .whitespacesAndNewlines)))
+                            let trimmedText = allText.trimmingCharacters(in: .whitespacesAndNewlines)
+                            continuation.yield(.text(trimmedText))
+                            // Log final text output
+                            await MainActor.run {
+                                let preview = String(trimmedText.prefix(200))
+                                DebugLogger.shared.logAPIEvent(".text(\"\(preview)\(trimmedText.count > 200 ? "..." : "")\")")
+                            }
                         }
                         continuation.yield(.done)
+                        await MainActor.run {
+                            DebugLogger.shared.logAPIEvent(".done")
+                        }
                     }
 
                     continuation.finish()
                 } catch {
+                    // Log error
+                    await MainActor.run {
+                        DebugLogger.shared.logError(error, context: "API request failed")
+                    }
                     continuation.yield(.error(error.localizedDescription))
                     continuation.finish()
                 }

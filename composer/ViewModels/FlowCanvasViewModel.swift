@@ -112,17 +112,25 @@ final class FlowCanvasViewModel {
         flow.nodes.append(node)
         flow.touch()
         modelContext.insert(node)
+
+        DebugLogger.shared.logEvent("Node added: \(node.label) [\(type.rawValue)] at (\(Int(position.x)), \(Int(position.y)))")
     }
 
     /// Delete nodes by IDs
     func deleteNodes(_ ids: Set<UUID>) {
         let nodesToDelete = flow.nodes.filter { ids.contains($0.id) }
+        let deletedLabels = nodesToDelete.map { $0.label }
+
         for node in nodesToDelete {
             // Edges will be cascade deleted due to relationship rules
             flow.nodes.removeAll { $0.id == node.id }
             modelContext.delete(node)
         }
         flow.touch()
+
+        if !deletedLabels.isEmpty {
+            DebugLogger.shared.logEvent("Nodes deleted: \(deletedLabels.joined(separator: ", "))")
+        }
     }
 
     /// Delete a single node
@@ -175,24 +183,41 @@ final class FlowCanvasViewModel {
         edge.targetNode = targetNode
 
         flow.touch()
+
+        DebugLogger.shared.logEvent("Edge created: \(sourceNode.label).\(source.portId) → \(targetNode.label).\(target.portId)")
     }
 
     /// Delete an edge by ID
     func deleteEdge(_ edgeId: UUID) {
         guard let edge = flow.edges.first(where: { $0.id == edgeId }) else { return }
+        let sourceLabel = edge.sourceNode?.label ?? "?"
+        let targetLabel = edge.targetNode?.label ?? "?"
+
         flow.edges.removeAll { $0.id == edgeId }
         modelContext.delete(edge)
         flow.touch()
+
+        DebugLogger.shared.logEvent("Edge deleted: \(sourceLabel) → \(targetLabel)")
     }
 
     /// Delete edges by IDs
     func deleteEdges(_ ids: Set<UUID>) {
         let edgesToDelete = flow.edges.filter { ids.contains($0.id) }
+        let deletedDescriptions = edgesToDelete.map { edge in
+            let sourceLabel = edge.sourceNode?.label ?? "?"
+            let targetLabel = edge.targetNode?.label ?? "?"
+            return "\(sourceLabel) → \(targetLabel)"
+        }
+
         for edge in edgesToDelete {
             flow.edges.removeAll { $0.id == edge.id }
             modelContext.delete(edge)
         }
         flow.touch()
+
+        if !deletedDescriptions.isEmpty {
+            DebugLogger.shared.logEvent("Edges deleted: \(deletedDescriptions.joined(separator: ", "))")
+        }
     }
 
     // MARK: - Cycle Detection
@@ -229,16 +254,41 @@ final class FlowCanvasViewModel {
     func executeFlow() async {
         guard !isExecuting else { return }
 
+        let startTime = Date()
         isExecuting = true
         nodeOutputs.removeAll()
+
+        DebugLogger.shared.logExecutionStart(flowName: flow.name, nodeCount: flow.nodes.count)
 
         // Topological sort nodes
         let sortedNodes = topologicalSort()
 
+        // Track results for logging
+        var nodeResults: [String] = []
+
         // Execute each node in order
         for node in sortedNodes {
+            let nodeStart = Date()
             await executeNode(node)
+            let nodeDuration = Date().timeIntervalSince(nodeStart)
+
+            // Determine status for logging
+            let status: String
+            switch node.nodeType {
+            case .textInput:
+                status = "pass-through"
+            case .textGeneration:
+                let data = node.decodeData(TextGenerationData.self)
+                status = data?.executionStatus.rawValue ?? "unknown"
+            case .previewOutput:
+                status = "pass-through"
+            }
+
+            nodeResults.append("\(node.label): \(status) (\(String(format: "%.2f", nodeDuration))s)")
         }
+
+        let totalDuration = Date().timeIntervalSince(startTime)
+        DebugLogger.shared.logExecutionComplete(flowName: flow.name, duration: totalDuration, nodeResults: nodeResults)
 
         isExecuting = false
     }

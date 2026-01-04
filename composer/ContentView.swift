@@ -44,11 +44,32 @@ struct ContentView: View {
             }
         }
         .onAppear {
+            // Initialize debug logger
+            DebugLogger.shared.logEvent("App launched")
+
             // Select first flow or create one if none exist
             if flows.isEmpty {
                 createDefaultFlow()
             } else if selectedFlow == nil {
                 selectedFlow = flows.first
+            }
+        }
+        .onChange(of: selectedFlow) { _, newFlow in
+            // Log flow state when selection changes
+            if let flow = newFlow {
+                DebugLogger.shared.logFlowState(flow)
+            }
+        }
+        .onChange(of: selectedFlow?.nodes.count) { _, _ in
+            // Log flow state when node count changes
+            if let flow = selectedFlow {
+                DebugLogger.shared.logFlowState(flow)
+            }
+        }
+        .onChange(of: selectedFlow?.edges.count) { _, _ in
+            // Log flow state when edge count changes
+            if let flow = selectedFlow {
+                DebugLogger.shared.logFlowState(flow)
             }
         }
         .sheet(isPresented: $showSettings) {

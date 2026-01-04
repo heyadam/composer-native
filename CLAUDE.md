@@ -23,7 +23,7 @@ On build failure:
 - **Ask first**: Architectural changes, ambiguous fixes
 - **Mysterious failures**: Use `/axiom:fix-build` (see below)
 
-## Build Troubleshooting
+## Build & Debug Troubleshooting
 
 | Situation | Use |
 |-----------|-----|
@@ -32,6 +32,8 @@ On build failure:
 | Build fails with code errors | `/build` auto-fixes simple issues |
 | Mysterious failures (no clear error, stale code, "No such module") | `/axiom:fix-build` |
 | Builds are slow | `/axiom:optimize-build` |
+| Runtime issues (execution, API, state) | Read the debug log (see Debugging section) |
+| Verify new feature works | Build, run app, check debug log |
 
 **`/build`** executes `xcodebuild` and parses errors. **`/axiom:fix-build`** diagnoses environment issues (zombie processes, stale Derived Data, stuck simulators) that cause mysterious failures.
 
@@ -65,6 +67,26 @@ On build failure:
 ### Debugging
 - `memory-debugging` - Memory leaks, retain cycles
 - `performance-profiling` - Instruments, profiling
+
+### Runtime Debug Log
+The app writes a debug log that Claude can read to understand app state:
+
+```
+Read "/Users/adam/Library/Containers/com.heyadam.composer/Data/Library/Application Support/Composer/Logs/debug.log"
+```
+
+**What's logged:**
+- Flow state (nodes, edges, connections, values)
+- Execution timing and results
+- API requests/responses (keys redacted)
+- Structure changes (node/edge add/delete)
+- Errors with context
+
+**When to check the debug log:**
+- After implementing new features - verify they work at runtime
+- When debugging execution issues - see API calls and responses
+- When flow state seems incorrect - inspect actual data
+- After user reports a bug - understand what happened
 
 ### Networking
 - `networking` / `networking-diag` - URLSession, async networking
