@@ -164,14 +164,17 @@ final class FlowCanvasViewModel {
         let edge = FlowEdge(
             sourceHandle: source.portId,
             targetHandle: target.portId,
-            dataType: source.portType,
-            sourceNode: sourceNode,
-            targetNode: targetNode
+            dataType: source.portType
         )
         edge.flow = flow
         flow.edges.append(edge)
-        flow.touch()
         modelContext.insert(edge)
+
+        // Set relationships AFTER insertion to ensure SwiftData syncs inverse arrays
+        edge.sourceNode = sourceNode
+        edge.targetNode = targetNode
+
+        flow.touch()
     }
 
     /// Delete an edge by ID

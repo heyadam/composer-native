@@ -19,7 +19,11 @@ final class FlowEdge {
     var flow: Flow?
 
     // Actual relationships to nodes (not string IDs)
+    // @Relationship ensures bidirectional sync with FlowNode.outgoingEdges/incomingEdges
+    @Relationship
     var sourceNode: FlowNode?
+
+    @Relationship
     var targetNode: FlowNode?
 
     init(

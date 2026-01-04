@@ -67,19 +67,37 @@ actor ExecutionService {
                         return
                     }
 
-                    // Parse NDJSON stream
-                    for try await line in bytes.lines {
-                        if let event = NDJSONParser.parse(line: line) {
-                            continuation.yield(event)
+                    // Check content type to determine parsing strategy
+                    // - NDJSON: Each line is a JSON object like {"type": "text", "content": "..."}
+                    // - Plain text: Vercel AI SDK toTextStreamResponse() format, raw text chunks
+                    let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type") ?? ""
+                    let isNDJSON = contentType.contains("ndjson") || contentType.contains("json")
 
-                            if case .done = event {
-                                break
-                            }
+                    if isNDJSON {
+                        // Parse NDJSON stream (used by image generation, Google thinking, etc.)
+                        for try await line in bytes.lines {
+                            if let event = NDJSONParser.parse(line: line) {
+                                continuation.yield(event)
 
-                            if case .error = event {
-                                break
+                                if case .done = event {
+                                    break
+                                }
+
+                                if case .error = event {
+                                    break
+                                }
                             }
                         }
+                    } else {
+                        // Plain text stream (text-generation default)
+                        var allText = ""
+                        for try await line in bytes.lines {
+                            allText += line + "\n"
+                        }
+                        if !allText.isEmpty {
+                            continuation.yield(.text(allText.trimmingCharacters(in: .whitespacesAndNewlines)))
+                        }
+                        continuation.yield(.done)
                     }
 
                     continuation.finish()

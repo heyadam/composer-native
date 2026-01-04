@@ -315,13 +315,24 @@ x-anthropic-key: sk-ant-...
 | `magic-generate` | Code transformation (Claude Haiku) |
 | `audio-transcription` | Speech-to-text (OpenAI) |
 
-**Response:** Streaming NDJSON
+**Response:** Streaming (format varies by type)
+
+**Text Generation** returns plain text stream (`text/plain`):
 ```
-{"type": "text", "content": "Hello"}
-{"type": "text", "content": " world"}
-{"type": "reasoning", "content": "Thinking..."}
-{"type": "usage", "promptTokens": 10, "completionTokens": 20}
+Hello world, this is the response...
 ```
+
+**Image Generation, Google Thinking Mode** return NDJSON (`application/x-ndjson`):
+```
+{"type": "text", "text": "Hello"}
+{"type": "reasoning", "text": "Thinking..."}
+{"type": "partial", "index": 0, "value": "base64...", "mimeType": "image/webp"}
+{"type": "image", "value": "base64...", "mimeType": "image/webp"}
+```
+
+**Native app implementation**: Check `Content-Type` header to determine parsing strategy:
+- `text/plain`: Collect text chunks directly
+- `application/x-ndjson` or `application/json`: Parse each line as JSON
 
 **Owner-Funded Execution:**
 - Include `shareToken` and `runId` in request
@@ -1059,7 +1070,10 @@ Required for full functionality:
 ## Notes for Native Implementation
 
 1. **Supabase Swift SDK**: Use `supabase-swift` for auth, database, and realtime
-2. **Streaming**: Parse NDJSON for execution responses
+2. **Streaming Responses**: Check `Content-Type` header:
+   - `text/plain`: Plain text stream (default for text-generation)
+   - `application/x-ndjson`: JSON lines (image-generation, Google thinking mode)
 3. **WebRTC**: Use native WebRTC for realtime voice (ephemeral token from API)
-4. **Caching**: Consider Core Data or SQLite for offline flow storage
+4. **Caching**: Consider Core Data or SwiftData for offline flow storage
 5. **Share URLs**: Universal links to `composer.design/f/[liveId]/[token]`
+6. **SwiftData Relationships**: When creating edges, set node relationships AFTER inserting the edge to ensure inverse relationship sync
