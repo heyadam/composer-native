@@ -2,7 +2,7 @@
 //  KeyboardDeletionTests.swift
 //  composerTests
 //
-//  Tests for keyboard deletion functionality on macOS
+//  Tests for keyboard deletion functionality on macOS and iOS
 //
 
 import Testing
@@ -161,5 +161,108 @@ struct KeyboardDeletionTests {
 
         #expect(!state.isEdgeSelected(edgeId), "Edge selection should be cleared")
         #expect(state.isNodeSelected(nodeId))
+    }
+
+    // MARK: - iOS KeyboardDeleteHandler Pattern Tests
+    //
+    // These tests verify the closure-based deletion pattern used by
+    // KeyboardDeleteHandler on iOS. The handler uses:
+    //   canDelete: { !canvasState.isEditingNode && canvasState.hasSelection }
+    //   onDelete: deleteSelected
+
+    @Test func canDeleteClosureReturnsFalseWhenEditing() {
+        let state = CanvasState()
+        let nodeId = UUID()
+
+        state.selectNode(nodeId)
+        state.isEditingNode = true
+
+        // Simulate the canDelete closure from KeyboardDeleteHandler
+        let canDelete = { !state.isEditingNode && state.hasSelection }
+
+        #expect(!canDelete(), "canDelete should return false when editing text")
+    }
+
+    @Test func canDeleteClosureReturnsFalseWhenNoSelection() {
+        let state = CanvasState()
+        state.isEditingNode = false
+
+        let canDelete = { !state.isEditingNode && state.hasSelection }
+
+        #expect(!canDelete(), "canDelete should return false when nothing selected")
+    }
+
+    @Test func canDeleteClosureReturnsTrueWhenValidDeletionState() {
+        let state = CanvasState()
+        let nodeId = UUID()
+
+        state.selectNode(nodeId)
+        state.isEditingNode = false
+
+        let canDelete = { !state.isEditingNode && state.hasSelection }
+
+        #expect(canDelete(), "canDelete should return true with selection and not editing")
+    }
+
+    @Test func onDeleteCallbackIsInvokedWhenCanDeleteIsTrue() {
+        let state = CanvasState()
+        let nodeId = UUID()
+        var deleteWasCalled = false
+
+        state.selectNode(nodeId)
+        state.isEditingNode = false
+
+        // Simulate the handler pattern
+        let canDelete = { !state.isEditingNode && state.hasSelection }
+        let onDelete = { deleteWasCalled = true }
+
+        if canDelete() {
+            onDelete()
+        }
+
+        #expect(deleteWasCalled, "onDelete should be called when canDelete returns true")
+    }
+
+    @Test func onDeleteCallbackIsNotInvokedWhenCanDeleteIsFalse() {
+        let state = CanvasState()
+        var deleteWasCalled = false
+
+        // No selection
+        state.isEditingNode = false
+
+        let canDelete = { !state.isEditingNode && state.hasSelection }
+        let onDelete = { deleteWasCalled = true }
+
+        if canDelete() {
+            onDelete()
+        }
+
+        #expect(!deleteWasCalled, "onDelete should not be called when canDelete returns false")
+    }
+
+    @Test func canDeleteRespondsToStateChanges() {
+        let state = CanvasState()
+        let nodeId = UUID()
+
+        let canDelete = { !state.isEditingNode && state.hasSelection }
+
+        // Initially: no selection, not editing -> false
+        #expect(!canDelete())
+
+        // Add selection -> true
+        state.selectNode(nodeId)
+        #expect(canDelete())
+
+        // Start editing -> false
+        state.isEditingNode = true
+        #expect(!canDelete())
+
+        // Stop editing -> true
+        state.isEditingNode = false
+        #expect(canDelete())
+
+        // Clear selection -> false
+        state.clearSelection()
+        #expect(!canDelete())
     }
 }

@@ -29,9 +29,6 @@ struct FlowCanvasView: View {
     @State private var lastPanOffset: CGSize = .zero
     @State private var lastScale: CGFloat = 1.0
 
-    // Keyboard focus state (for iOS hardware keyboard deletion)
-    @FocusState private var isCanvasFocused: Bool
-
     var body: some View {
         GeometryReader { geometry in
             ZStack {
@@ -133,25 +130,13 @@ struct FlowCanvasView: View {
             )
         )
         #else
-        // iOS: Enable keyboard focus for hardware keyboard deletion
-        .focusable()
-        .focused($isCanvasFocused)
-        .onKeyPress(.delete) {
-            guard !canvasState.isEditingNode, canvasState.hasSelection else {
-                return .ignored
-            }
-            deleteSelected()
-            return .handled
-        }
-        .onAppear {
-            isCanvasFocused = true
-        }
-        .onChange(of: canvasState.isEditingNode) { _, isEditing in
-            // Restore canvas focus when exiting text editing mode
-            if !isEditing {
-                isCanvasFocused = true
-            }
-        }
+        // iOS: Use UIKeyCommand for hardware keyboard deletion (avoids focusable() constraint conflicts)
+        .background(
+            KeyboardDeleteHandler(
+                canDelete: { !canvasState.isEditingNode && canvasState.hasSelection },
+                onDelete: deleteSelected
+            )
+        )
         #endif
     }
 
@@ -382,6 +367,58 @@ struct ScrollWheelModifier: NSViewRepresentable {
             // Use scrollingDeltaY for smooth scrolling
             let delta = event.scrollingDeltaY
             onScroll?(delta, location)
+        }
+    }
+}
+#endif
+
+// MARK: - iOS Input Handler (Keyboard)
+
+#if os(iOS)
+struct KeyboardDeleteHandler: UIViewControllerRepresentable {
+    let canDelete: () -> Bool
+    let onDelete: () -> Void
+
+    func makeUIViewController(context: Context) -> KeyboardDeleteViewController {
+        let vc = KeyboardDeleteViewController()
+        vc.canDelete = canDelete
+        vc.onDelete = onDelete
+        return vc
+    }
+
+    func updateUIViewController(_ uiViewController: KeyboardDeleteViewController, context: Context) {
+        uiViewController.canDelete = canDelete
+        uiViewController.onDelete = onDelete
+    }
+
+    class KeyboardDeleteViewController: UIViewController {
+        var canDelete: (() -> Bool)?
+        var onDelete: (() -> Void)?
+
+        override var canBecomeFirstResponder: Bool { true }
+
+        override var keyCommands: [UIKeyCommand]? {
+            [
+                UIKeyCommand(
+                    action: #selector(handleDelete),
+                    input: UIKeyCommand.inputDelete
+                ),
+                UIKeyCommand(
+                    action: #selector(handleDelete),
+                    input: "\u{8}" // Backspace
+                )
+            ]
+        }
+
+        @objc private func handleDelete() {
+            // Only delete if not editing text and something is selected
+            guard canDelete?() == true else { return }
+            onDelete?()
+        }
+
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            becomeFirstResponder()
         }
     }
 }
