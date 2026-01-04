@@ -112,23 +112,25 @@ struct FlowCanvasView: View {
             onViewModelCreated?(vm)
         }
         #if os(macOS)
-        .onDeleteCommand {
-            // Guard against deletion while editing text or when nothing selected
-            guard !canvasState.isEditingNode, canvasState.hasSelection else { return }
-            deleteSelected()
-        }
         .background(
-            ScrollWheelModifier { delta, location in
-                // Option+scroll or pinch to zoom
-                if NSEvent.modifierFlags.contains(.option) {
-                    let zoomDelta = 1.0 + (delta * 0.01)
-                    let newScale = canvasState.scale * zoomDelta
-                    canvasState.zoom(to: newScale, anchor: location)
-                    lastScale = canvasState.scale
-                    // Sync pan offset to prevent jump on next pan
-                    lastPanOffset = canvasState.offset
+            ScrollWheelModifier(
+                onScroll: { delta, location in
+                    // Option+scroll or pinch to zoom
+                    if NSEvent.modifierFlags.contains(.option) {
+                        let zoomDelta = 1.0 + (delta * 0.01)
+                        let newScale = canvasState.scale * zoomDelta
+                        canvasState.zoom(to: newScale, anchor: location)
+                        lastScale = canvasState.scale
+                        // Sync pan offset to prevent jump on next pan
+                        lastPanOffset = canvasState.offset
+                    }
+                },
+                onDelete: {
+                    // Guard against deletion while editing text or when nothing selected
+                    guard !canvasState.isEditingNode, canvasState.hasSelection else { return }
+                    deleteSelected()
                 }
-            }
+            )
         )
         #else
         // iOS: Enable keyboard focus for hardware keyboard deletion
@@ -317,26 +319,63 @@ struct SelectionBadge: View {
     }
 }
 
-// MARK: - macOS Scroll Wheel Handler
+// MARK: - macOS Input Handler (Scroll Wheel + Keyboard)
 
 #if os(macOS)
 import AppKit
 
 struct ScrollWheelModifier: NSViewRepresentable {
     let onScroll: (CGFloat, CGPoint) -> Void
+    var onDelete: (() -> Void)?
 
-    func makeNSView(context: Context) -> ScrollWheelView {
-        let view = ScrollWheelView()
+    func makeNSView(context: Context) -> CanvasInputView {
+        let view = CanvasInputView()
         view.onScroll = onScroll
+        view.onDelete = onDelete
         return view
     }
 
-    func updateNSView(_ nsView: ScrollWheelView, context: Context) {
+    func updateNSView(_ nsView: CanvasInputView, context: Context) {
         nsView.onScroll = onScroll
+        nsView.onDelete = onDelete
     }
 
-    class ScrollWheelView: NSView {
+    class CanvasInputView: NSView {
         var onScroll: ((CGFloat, CGPoint) -> Void)?
+        var onDelete: (() -> Void)?
+        private var eventMonitor: Any?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+
+            if window != nil {
+                // Set up local event monitor for key events
+                eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                    // Delete key (0x33 = backspace, 0x75 = forward delete)
+                    if event.keyCode == 0x33 || event.keyCode == 0x75 {
+                        // Only handle if no text field is focused
+                        if let firstResponder = self?.window?.firstResponder,
+                           !(firstResponder is NSTextView || firstResponder is NSTextField) {
+                            self?.onDelete?()
+                            return nil // Consume the event
+                        }
+                    }
+                    return event // Pass through other events
+                }
+            } else {
+                // Remove monitor when view is removed from window
+                if let monitor = eventMonitor {
+                    NSEvent.removeMonitor(monitor)
+                    eventMonitor = nil
+                }
+            }
+        }
+
+        deinit {
+            if let monitor = eventMonitor {
+                NSEvent.removeMonitor(monitor)
+            }
+        }
 
         override func scrollWheel(with event: NSEvent) {
             let location = convert(event.locationInWindow, from: nil)
