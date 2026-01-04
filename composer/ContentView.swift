@@ -13,16 +13,20 @@ struct ContentView: View {
     @Query private var flows: [Flow]
 
     @State private var selectedFlow: Flow?
+    @State private var showSettings = false
+    @State private var canvasViewModel: FlowCanvasViewModel?
 
     var body: some View {
         NavigationSplitView {
             sidebar
         } detail: {
             if let flow = selectedFlow {
-                FlowCanvasView(flow: flow)
-                    .toolbar {
-                        canvasToolbar(for: flow)
-                    }
+                FlowCanvasView(flow: flow) { viewModel in
+                    canvasViewModel = viewModel
+                }
+                .toolbar {
+                    canvasToolbar(for: flow)
+                }
             } else {
                 ContentUnavailableView(
                     "No Flow Selected",
@@ -38,6 +42,9 @@ struct ContentView: View {
             } else if selectedFlow == nil {
                 selectedFlow = flows.first
             }
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
         }
     }
 
@@ -81,11 +88,30 @@ struct ContentView: View {
     @ToolbarContentBuilder
     private func canvasToolbar(for flow: Flow) -> some ToolbarContent {
         ToolbarItemGroup {
+            // Run button
+            Button {
+                Task {
+                    await canvasViewModel?.executeFlow()
+                }
+            } label: {
+                Label("Run", systemImage: "play.fill")
+            }
+            .keyboardShortcut("r", modifiers: .command)
+            .disabled(canvasViewModel?.isExecuting ?? false)
+
+            Divider()
+
             Menu {
                 Button {
                     addNode(.textInput, to: flow)
                 } label: {
                     Label("Text Input", systemImage: NodeType.textInput.icon)
+                }
+
+                Button {
+                    addNode(.textGeneration, to: flow)
+                } label: {
+                    Label("Text Generation", systemImage: NodeType.textGeneration.icon)
                 }
 
                 Button {
@@ -112,6 +138,14 @@ struct ContentView: View {
                 Label("Redo", systemImage: "arrow.uturn.forward")
             }
             .disabled(!(modelContext.undoManager?.canRedo ?? false))
+
+            Divider()
+
+            Button {
+                showSettings = true
+            } label: {
+                Label("Settings", systemImage: "gearshape")
+            }
         }
     }
 

@@ -19,6 +19,7 @@ enum CanvasCoordinateSpace {
 
 struct FlowCanvasView: View {
     let flow: Flow
+    var onViewModelCreated: ((FlowCanvasViewModel) -> Void)?
     @Environment(\.modelContext) private var modelContext
     @State private var canvasState = CanvasState()
     @State private var viewModel: FlowCanvasViewModel?
@@ -27,6 +28,9 @@ struct FlowCanvasView: View {
     // Gesture state
     @State private var lastPanOffset: CGSize = .zero
     @State private var lastScale: CGFloat = 1.0
+
+    // Keyboard focus state (for iOS hardware keyboard deletion)
+    @FocusState private var isCanvasFocused: Bool
 
     var body: some View {
         GeometryReader { geometry in
@@ -45,12 +49,20 @@ struct FlowCanvasView: View {
                 )
                 .allowsHitTesting(false)
 
-                // Edge hit testing layer
-                EdgeHitTestingLayer(
+                // Edge hit testing layer - temporarily disabled
+                // EdgeHitTestingLayer(
+                //     edges: flow.edges,
+                //     state: canvasState,
+                //     viewModel: viewModel
+                // )
+
+                // Edge context menus (for right-click/long-press delete)
+                EdgeContextMenuLayer(
                     edges: flow.edges,
                     state: canvasState,
                     viewModel: viewModel
                 )
+                .allowsHitTesting(false) // Temporarily disable to debug node selection
 
                 // Connection preview
                 ConnectionPreview(
@@ -66,12 +78,27 @@ struct FlowCanvasView: View {
                     viewModel: viewModel,
                     connectionViewModel: connectionViewModel
                 )
+
+                // Selection count badge
+                if canvasState.selectionCount > 1 {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Spacer()
+                            SelectionBadge(count: canvasState.selectionCount)
+                                .padding()
+                        }
+                    }
+                    .allowsHitTesting(false)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
             }
+            .animation(.easeOut(duration: 0.2), value: canvasState.selectionCount)
             .coordinateSpace(name: CanvasCoordinateSpace.name)
             .preference(key: CanvasSizeKey.self, value: geometry.size)
-            .contentShape(Rectangle())  // Make entire area tappable
             // Canvas gestures - disabled while editing text
-            .gesture(canvasPanGesture, isEnabled: !canvasState.isEditingNode)
+            // Use simultaneousGesture for pan to allow node gestures to take priority
+            .simultaneousGesture(canvasPanGesture, isEnabled: !canvasState.isEditingNode)
             .simultaneousGesture(canvasZoomGesture, isEnabled: !canvasState.isEditingNode)
             .simultaneousGesture(canvasTapGesture)
         }
@@ -79,11 +106,15 @@ struct FlowCanvasView: View {
             canvasState.updateCanvasSize(size)
         }
         .task {
-            viewModel = FlowCanvasViewModel(flow: flow, context: modelContext)
-            connectionViewModel = ConnectionViewModel(canvasViewModel: viewModel, canvasState: canvasState)
+            let vm = FlowCanvasViewModel(flow: flow, context: modelContext)
+            viewModel = vm
+            connectionViewModel = ConnectionViewModel(canvasViewModel: vm, canvasState: canvasState)
+            onViewModelCreated?(vm)
         }
         #if os(macOS)
         .onDeleteCommand {
+            // Guard against deletion while editing text or when nothing selected
+            guard !canvasState.isEditingNode, canvasState.hasSelection else { return }
             deleteSelected()
         }
         .background(
@@ -99,6 +130,26 @@ struct FlowCanvasView: View {
                 }
             }
         )
+        #else
+        // iOS: Enable keyboard focus for hardware keyboard deletion
+        .focusable()
+        .focused($isCanvasFocused)
+        .onKeyPress(.delete) {
+            guard !canvasState.isEditingNode, canvasState.hasSelection else {
+                return .ignored
+            }
+            deleteSelected()
+            return .handled
+        }
+        .onAppear {
+            isCanvasFocused = true
+        }
+        .onChange(of: canvasState.isEditingNode) { _, isEditing in
+            // Restore canvas focus when exiting text editing mode
+            if !isEditing {
+                isCanvasFocused = true
+            }
+        }
         #endif
     }
 
@@ -107,12 +158,16 @@ struct FlowCanvasView: View {
     private var canvasPanGesture: some Gesture {
         DragGesture()
             .onChanged { value in
+                // Don't pan if dragging a node
+                guard !canvasState.isDraggingNode else { return }
                 canvasState.offset = CGSize(
                     width: lastPanOffset.width + value.translation.width,
                     height: lastPanOffset.height + value.translation.height
                 )
             }
             .onEnded { _ in
+                // Only update if we weren't dragging a node
+                guard !canvasState.isDraggingNode else { return }
                 lastPanOffset = canvasState.offset
             }
     }
@@ -241,6 +296,24 @@ struct NodeLayer: View {
             )
             .id(node.id)  // Explicit identity for SwiftUI
         }
+    }
+}
+
+// MARK: - Selection Badge
+
+struct SelectionBadge: View {
+    let count: Int
+
+    var body: some View {
+        Text("\(count) selected")
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background {
+                Capsule()
+                    .fill(Color.accentColor.opacity(0.9))
+            }
     }
 }
 

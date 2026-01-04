@@ -8,12 +8,11 @@ Universal macOS/iOS app for Composer - a visual AI workflow builder.
 
 ## Building: Use Xcode Tools Plugin
 
-Build and test the project using these commands:
+Build and test the project:
 
 ```
 /build          # Build for macOS (default)
 /build ios      # Build for iOS Simulator
-/build mac      # Build for macOS
 /test           # Run all tests
 /test unit      # Run unit tests only
 /test ui        # Run UI tests only
@@ -22,6 +21,19 @@ Build and test the project using these commands:
 On build failure:
 - **Auto-fix**: Missing imports, `await` keywords, simple typos
 - **Ask first**: Architectural changes, ambiguous fixes
+- **Mysterious failures**: Use `/axiom:fix-build` (see below)
+
+## Build Troubleshooting
+
+| Situation | Use |
+|-----------|-----|
+| Run a build | `/build` or `/build ios` |
+| Run tests | `/test` |
+| Build fails with code errors | `/build` auto-fixes simple issues |
+| Mysterious failures (no clear error, stale code, "No such module") | `/axiom:fix-build` |
+| Builds are slow | `/axiom:optimize-build` |
+
+**`/build`** executes `xcodebuild` and parses errors. **`/axiom:fix-build`** diagnoses environment issues (zombie processes, stale Derived Data, stuck simulators) that cause mysterious failures.
 
 ## Development: Axiom First, Context7 to Verify
 
@@ -51,9 +63,7 @@ On build failure:
 - For migrations: Prefer Supabase migrations over Axiom database skills
 
 ### Debugging
-- `xcode-debugging` - Xcode build failures, stale builds
 - `memory-debugging` - Memory leaks, retain cycles
-- `build-debugging` - Build system issues
 - `performance-profiling` - Instruments, profiling
 
 ### Networking
@@ -73,9 +83,7 @@ After implementing UI changes, use Axiom to verify the code works correctly:
 
 ### Trigger Examples
 ```
-"BUILD FAILED with stale builds"     → xcode-debugging
 "Actor isolation errors in Swift 6"  → swift-concurrency
-"Add a column to database safely"    → database-migration
 "App has memory leaks"               → memory-debugging
 "Implement Liquid Glass toolbar"     → liquid-glass
 ```

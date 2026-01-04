@@ -56,6 +56,12 @@ final class FlowCanvasViewModel {
     /// Whether any nodes are currently being dragged
     var isDragging: Bool { !draggedNodePositions.isEmpty }
 
+    /// Whether flow execution is in progress
+    private(set) var isExecuting: Bool = false
+
+    /// Execution outputs for nodes (accumulated during execution)
+    var nodeOutputs: [UUID: String] = [:]
+
     init(flow: Flow, context: ModelContext) {
         self.flow = flow
         self.modelContext = context
@@ -212,5 +218,151 @@ final class FlowCanvasViewModel {
         }
 
         return false
+    }
+
+    // MARK: - Flow Execution
+
+    /// Execute the entire flow
+    func executeFlow() async {
+        guard !isExecuting else { return }
+
+        isExecuting = true
+        nodeOutputs.removeAll()
+
+        // Topological sort nodes
+        let sortedNodes = topologicalSort()
+
+        // Execute each node in order
+        for node in sortedNodes {
+            await executeNode(node)
+        }
+
+        isExecuting = false
+    }
+
+    /// Topological sort of nodes based on edges
+    private func topologicalSort() -> [FlowNode] {
+        var result: [FlowNode] = []
+        var visited: Set<UUID> = []
+        var temp: Set<UUID> = []
+
+        func visit(_ node: FlowNode) {
+            if visited.contains(node.id) { return }
+            if temp.contains(node.id) { return }  // Cycle detected, skip
+
+            temp.insert(node.id)
+
+            // Visit upstream nodes first
+            for edge in node.incomingEdges {
+                if let sourceNode = edge.sourceNode {
+                    visit(sourceNode)
+                }
+            }
+
+            temp.remove(node.id)
+            visited.insert(node.id)
+            result.append(node)
+        }
+
+        for node in flow.nodes {
+            visit(node)
+        }
+
+        return result
+    }
+
+    /// Execute a single node
+    private func executeNode(_ node: FlowNode) async {
+        switch node.nodeType {
+        case .textInput:
+            // Text input nodes just output their stored text
+            let data = node.decodeData(TextInputData.self) ?? TextInputData()
+            nodeOutputs[node.id] = data.text
+
+        case .textGeneration:
+            await executeTextGeneration(node)
+
+        case .previewOutput:
+            // Preview nodes don't execute, they just display their input
+            if let inputValue = getInputValue(for: node, portId: PortID.previewInputString) {
+                nodeOutputs[node.id] = inputValue
+            }
+        }
+    }
+
+    /// Execute a text generation node
+    private func executeTextGeneration(_ node: FlowNode) async {
+        var data = node.decodeData(TextGenerationData.self) ?? TextGenerationData()
+
+        // Set status to running
+        data.executionStatus = .running
+        data.executionOutput = ""
+        data.executionError = nil
+        node.encodeData(data)
+
+        // Gather inputs from connected nodes
+        let prompt = getInputValue(for: node, portId: PortID.textGenInputPrompt) ?? ""
+        let system = getInputValue(for: node, portId: PortID.textGenInputSystem)
+
+        var inputs: [String: String] = ["prompt": prompt]
+        if let system {
+            inputs["system"] = system
+        }
+
+        // Execute via API
+        var output = ""
+
+        do {
+            let stream = await ExecutionService.shared.execute(
+                nodeType: "text-generation",
+                inputs: inputs,
+                provider: data.provider,
+                model: data.model
+            )
+
+            for try await event in stream {
+                switch event {
+                case .text(let text):
+                    output += text
+                    data.executionOutput = output
+                    node.encodeData(data)
+
+                case .error(let message):
+                    data.executionStatus = .error
+                    data.executionError = message
+                    node.encodeData(data)
+                    return
+
+                case .done:
+                    break
+
+                default:
+                    break
+                }
+            }
+
+            // Success
+            data.executionStatus = .success
+            data.executionOutput = output
+            node.encodeData(data)
+            nodeOutputs[node.id] = output
+
+        } catch {
+            data.executionStatus = .error
+            data.executionError = error.localizedDescription
+            node.encodeData(data)
+        }
+    }
+
+    /// Get the input value for a node's port from connected upstream node
+    private func getInputValue(for node: FlowNode, portId: String) -> String? {
+        // Find edge connected to this port
+        guard let edge = node.incomingEdges.first(where: { $0.targetHandle == portId }),
+              let sourceNode = edge.sourceNode else {
+            return nil
+        }
+
+        // Return the output from the source node
+        return nodeOutputs[sourceNode.id]
     }
 }

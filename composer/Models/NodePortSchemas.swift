@@ -12,6 +12,11 @@ enum PortID {
     // TextInput ports
     static let textInputOutput = "text-input.output"
 
+    // TextGeneration ports
+    static let textGenInputPrompt = "text-gen.input.prompt"
+    static let textGenInputSystem = "text-gen.input.system"
+    static let textGenOutput = "text-gen.output"
+
     // PreviewOutput ports
     static let previewInputString = "preview.input.string"
     static let previewInputImage = "preview.input.image"
@@ -25,6 +30,11 @@ enum NodePortSchemas {
         switch type {
         case .textInput:
             return []
+        case .textGeneration:
+            return [
+                PortDefinition(id: PortID.textGenInputPrompt, label: "Prompt", dataType: .string, isRequired: true),
+                PortDefinition(id: PortID.textGenInputSystem, label: "System", dataType: .string, isRequired: false),
+            ]
         case .previewOutput:
             return [
                 PortDefinition(id: PortID.previewInputString, label: "Text", dataType: .string, isRequired: false),
@@ -40,6 +50,10 @@ enum NodePortSchemas {
         case .textInput:
             return [
                 PortDefinition(id: PortID.textInputOutput, label: "Output", dataType: .string, isRequired: true)
+            ]
+        case .textGeneration:
+            return [
+                PortDefinition(id: PortID.textGenOutput, label: "Output", dataType: .string, isRequired: false)
             ]
         case .previewOutput:
             return []

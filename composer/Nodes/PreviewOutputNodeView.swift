@@ -13,6 +13,20 @@ struct PreviewOutputNodeView: View {
     let state: CanvasState
     let connectionViewModel: ConnectionViewModel?
 
+    /// Trigger re-render when source nodes' data changes
+    @State private var refreshTrigger = false
+
+    /// Get all source node data hashes to detect changes
+    private var sourceDataHash: Int {
+        var hasher = Hasher()
+        for edge in node.incomingEdges {
+            if let sourceNode = edge.sourceNode {
+                hasher.combine(sourceNode.dataJSON)
+            }
+        }
+        return hasher.finalize()
+    }
+
     var body: some View {
         NodeFrame(
             icon: node.nodeType.icon,
@@ -25,6 +39,11 @@ struct PreviewOutputNodeView: View {
             connectionViewModel: connectionViewModel
         ) {
             previewContent
+                .id(refreshTrigger) // Force refresh when trigger changes
+        }
+        .onChange(of: sourceDataHash) { _, _ in
+            // Toggle to force view refresh when source data changes
+            refreshTrigger.toggle()
         }
     }
 
@@ -105,11 +124,19 @@ struct PreviewOutputNodeView: View {
 
             switch edge.dataType {
             case .string:
-                if sourceNode.nodeType == .textInput {
+                switch sourceNode.nodeType {
+                case .textInput:
                     let textData = sourceNode.decodeData(TextInputData.self)
                     if let text = textData?.text, !text.isEmpty {
                         results.append(.text(text))
                     }
+                case .textGeneration:
+                    let genData = sourceNode.decodeData(TextGenerationData.self)
+                    if let output = genData?.executionOutput, !output.isEmpty {
+                        results.append(.text(output))
+                    }
+                default:
+                    break
                 }
 
             case .image:

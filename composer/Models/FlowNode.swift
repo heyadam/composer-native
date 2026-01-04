@@ -76,3 +76,20 @@ final class FlowNode {
 struct TextInputData: Codable {
     var text: String = ""
 }
+
+/// Execution status for processing nodes
+enum ExecutionStatus: String, Codable, Sendable {
+    case idle
+    case running
+    case success
+    case error
+}
+
+/// Data stored in TextGeneration nodes
+struct TextGenerationData: Codable {
+    var provider: String = "openai"
+    var model: String = "gpt-4o"
+    var executionStatus: ExecutionStatus = .idle
+    var executionOutput: String = ""
+    var executionError: String?
+}

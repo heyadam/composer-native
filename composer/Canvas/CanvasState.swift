@@ -87,6 +87,10 @@ final class CanvasState {
     /// When true, canvas pan/zoom gestures are disabled
     var isEditingNode: Bool = false
 
+    /// Whether a node is currently being dragged
+    /// When true, canvas pan gesture is disabled
+    var isDraggingNode: Bool = false
+
     // MARK: - Canvas Size
 
     /// Canvas size (set via preference key, not in body)
@@ -167,6 +171,16 @@ final class CanvasState {
     /// Check if an edge is selected
     func isEdgeSelected(_ edgeId: UUID) -> Bool {
         selectedEdgeIds.contains(edgeId)
+    }
+
+    /// Total number of selected items (nodes + edges)
+    var selectionCount: Int {
+        selectedNodeIds.count + selectedEdgeIds.count
+    }
+
+    /// Whether anything is selected
+    var hasSelection: Bool {
+        !selectedNodeIds.isEmpty || !selectedEdgeIds.isEmpty
     }
 }
 

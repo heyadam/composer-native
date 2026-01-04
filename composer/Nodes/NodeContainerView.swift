@@ -19,6 +19,7 @@ struct NodeContainerView: View {
 
     var body: some View {
         nodeContent
+            .overlay(selectionOverlay)  // Apply overlay before scale so it scales with node
             .scaleEffect(state.scale)
             .background(
                 GeometryReader { geometry in
@@ -32,17 +33,35 @@ struct NodeContainerView: View {
                 }
             )
             .position(screenPosition)
-            .gesture(nodeDragGesture)
-            .simultaneousGesture(nodeTapGesture)
+            .highPriorityGesture(nodeDragGesture)
+            .highPriorityGesture(nodeTapGesture)
             #if os(iOS)
             .simultaneousGesture(nodeLongPressGesture)
             #endif
-            .overlay(selectionOverlay)
+            .animation(.easeOut(duration: 0.15), value: state.isNodeSelected(node.id))
             .contextMenu {
+                // Show selection info when multiple nodes selected
+                if state.selectedNodeIds.count > 1 && state.isNodeSelected(node.id) {
+                    Text("\(state.selectedNodeIds.count) nodes selected")
+                        .font(.caption)
+                    Divider()
+                }
+
                 Button(role: .destructive) {
-                    canvasViewModel?.deleteNode(node.id)
+                    if state.selectedNodeIds.count > 1 && state.isNodeSelected(node.id) {
+                        // Delete all selected nodes
+                        canvasViewModel?.deleteNodes(state.selectedNodeIds)
+                        state.selectedNodeIds.removeAll()
+                    } else {
+                        // Delete just this node
+                        canvasViewModel?.deleteNode(node.id)
+                    }
                 } label: {
-                    Label("Delete", systemImage: "trash")
+                    if state.selectedNodeIds.count > 1 && state.isNodeSelected(node.id) {
+                        Label("Delete \(state.selectedNodeIds.count) Nodes", systemImage: "trash")
+                    } else {
+                        Label("Delete", systemImage: "trash")
+                    }
                 }
             }
             .accessibilityElement(children: .contain)
@@ -60,6 +79,14 @@ struct NodeContainerView: View {
         switch node.nodeType {
         case .textInput:
             TextInputNodeView(
+                node: node,
+                viewModel: nodeViewModel,
+                state: state,
+                connectionViewModel: connectionViewModel
+            )
+
+        case .textGeneration:
+            TextGenerationNodeView(
                 node: node,
                 viewModel: nodeViewModel,
                 state: state,
@@ -93,8 +120,9 @@ struct NodeContainerView: View {
     private var selectionOverlay: some View {
         if state.isNodeSelected(node.id) {
             RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.accentColor, lineWidth: 2)
-                .padding(-2)
+                .stroke(Color.accentColor, lineWidth: 2.5)
+                .padding(-3)
+                .shadow(color: Color.accentColor.opacity(0.4), radius: 6)
         }
     }
 
@@ -120,6 +148,7 @@ struct NodeContainerView: View {
 
                     // Start drag
                     lastDragPosition = node.position
+                    state.isDraggingNode = true
                     canvasViewModel?.beginNodeDrag(node.id, at: node.position)
 
                     // Select on drag start if not already selected
@@ -153,6 +182,7 @@ struct NodeContainerView: View {
                     canvasViewModel?.endNodeDrag(node.id)
                     lastDragPosition = .zero
                 }
+                state.isDraggingNode = false
                 ignoringCurrentDrag = false
             }
     }
