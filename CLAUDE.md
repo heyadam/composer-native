@@ -168,3 +168,16 @@ The flow canvas is implemented with SwiftUI and supports:
 - Edge positions come from `state.portPositions["\(nodeId):\(portId)"]`
 - Port positions registered via GeometryReader in named coordinate space
 - iOS 26 Liquid Glass avoided on transformed views (causes `_UIGravityWellEffectAnchorView` errors)
+
+### Gesture Priority (Critical)
+
+Gestures must maintain this priority order - see `.claude/rules/gesture-tests.md`:
+
+1. **Port connection** (highest) - `minimumDistance: 0`, 44pt hit target
+2. **Node drag** - `minimumDistance: 8`, bails out if `activeConnection` set
+3. **Canvas pan** (lowest) - bails out if `isDraggingNode` or `activeConnection`
+
+**After modifying gesture code, run tests:**
+```bash
+/test unit  # Runs HitTesterTests and CanvasStateTests
+```

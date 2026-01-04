@@ -158,16 +158,16 @@ struct FlowCanvasView: View {
     private var canvasPanGesture: some Gesture {
         DragGesture()
             .onChanged { value in
-                // Don't pan if dragging a node
-                guard !canvasState.isDraggingNode else { return }
+                // Don't pan if dragging a node or creating a connection
+                guard !canvasState.isDraggingNode && canvasState.activeConnection == nil else { return }
                 canvasState.offset = CGSize(
                     width: lastPanOffset.width + value.translation.width,
                     height: lastPanOffset.height + value.translation.height
                 )
             }
             .onEnded { _ in
-                // Only update if we weren't dragging a node
-                guard !canvasState.isDraggingNode else { return }
+                // Only update if we weren't dragging a node or connection
+                guard !canvasState.isDraggingNode && canvasState.activeConnection == nil else { return }
                 lastPanOffset = canvasState.offset
             }
     }

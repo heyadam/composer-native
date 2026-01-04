@@ -29,17 +29,30 @@ struct PortView: View {
         HStack(spacing: 6) {
             if isOutput {
                 portLabel
-                portCircle
+                portCircleWithGesture
             } else {
-                portCircle
+                portCircleWithGesture
                 portLabel
             }
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 2)
-        .contentShape(Rectangle())
-        .highPriorityGesture(connectionDragGesture)
         .offset(x: showConnectionError ? -4 : 0)
+    }
+
+    /// Port circle with gesture applied directly for reliable hit testing
+    private var portCircleWithGesture: some View {
+        ZStack {
+            // Invisible hit target - larger than visual circle
+            Circle()
+                .fill(Color.clear)
+                .frame(width: hitTargetSize, height: hitTargetSize)
+
+            // Visual circle (centered)
+            portCircle
+        }
+        .contentShape(Circle())
+        .highPriorityGesture(connectionDragGesture)
     }
 
     private var portLabel: some View {
@@ -90,7 +103,7 @@ struct PortView: View {
     }
 
     private var connectionDragGesture: some Gesture {
-        DragGesture(coordinateSpace: .named(CanvasCoordinateSpace.name))
+        DragGesture(minimumDistance: 0, coordinateSpace: .named(CanvasCoordinateSpace.name))
             .onChanged { value in
                 guard let canvasState, let connectionViewModel, let nodeId else { return }
 

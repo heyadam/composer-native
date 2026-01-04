@@ -33,8 +33,8 @@ struct NodeContainerView: View {
                 }
             )
             .position(screenPosition)
-            .highPriorityGesture(nodeDragGesture)
-            .highPriorityGesture(nodeTapGesture)
+            .gesture(nodeDragGesture)
+            .gesture(nodeTapGesture)
             #if os(iOS)
             .simultaneousGesture(nodeLongPressGesture)
             #endif
@@ -129,19 +129,20 @@ struct NodeContainerView: View {
     // MARK: - Gestures
 
     private var nodeDragGesture: some Gesture {
-        DragGesture(coordinateSpace: .named(CanvasCoordinateSpace.name))
+        // Use higher minimumDistance so port gestures (minimumDistance: 0) claim touches first
+        DragGesture(minimumDistance: 8, coordinateSpace: .named(CanvasCoordinateSpace.name))
             .onChanged { value in
-                // Don't drag if a connection drag is active
+                // Always check if a connection drag is active (port gesture may have claimed it)
                 if state.activeConnection != nil {
                     ignoringCurrentDrag = true
-                    return
                 }
 
+                if ignoringCurrentDrag { return }
+
                 // On first touch, check if we started on a port
-                if lastDragPosition == .zero && !ignoringCurrentDrag {
-                    // Check if drag started on a port (should be handled by port gesture instead)
-                    // Now using same coordinate space as port positions
-                    if state.findPort(near: value.startLocation, excludingNode: nil) != nil {
+                if lastDragPosition == .zero {
+                    // Check if drag started on a port - use larger hit radius for reliability
+                    if state.findPort(near: value.startLocation, excludingNode: nil, hitRadius: 30) != nil {
                         ignoringCurrentDrag = true
                         return
                     }
@@ -156,8 +157,6 @@ struct NodeContainerView: View {
                         state.selectNode(node.id)
                     }
                 }
-
-                if ignoringCurrentDrag { return }
 
                 // Calculate world delta
                 let screenDelta = CGSize(
