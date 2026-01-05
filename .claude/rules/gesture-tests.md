@@ -14,11 +14,11 @@ After modifying any of the following files, run the gesture tests to ensure hit 
 ## Running Tests
 
 ```bash
-# Run all gesture and input-related unit tests
-xcodebuild test -scheme composer -destination 'platform=macOS' -only-testing:composerTests/HitTesterTests -only-testing:composerTests/CanvasStateTests -only-testing:composerTests/KeyboardDeletionTests
+# Run all tests via XcodeBuildMCP
+mcp__XcodeBuildMCP__test_macos
 
-# Quick test run (just gesture tests)
-/test unit
+# Or run specific gesture tests with extraArgs
+mcp__XcodeBuildMCP__test_macos(extraArgs: ["-only-testing:composerTests/HitTesterTests", "-only-testing:composerTests/CanvasStateTests", "-only-testing:composerTests/KeyboardDeletionTests"])
 ```
 
 ## Test Coverage

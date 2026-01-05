@@ -6,19 +6,61 @@ Universal macOS/iOS app for Composer - a visual AI workflow builder.
 - iOS 26+
 - macOS 26+
 
-## Building: Use Xcode Tools Plugin
+## Building: Use XcodeBuildMCP
 
-Build and test the project:
+This project uses **XcodeBuildMCP** for all build, test, and simulator operations. The MCP server handles project/scheme detection automatically.
+
+### Session Setup (First Time)
+
+Before building, set session defaults so tools know which project and simulator to use:
 
 ```
-/build          # Build for macOS (default)
-/build ios      # Build for iOS Simulator
-/test           # Run all tests
-/test unit      # Run unit tests only
-/test ui        # Run UI tests only
+mcp__XcodeBuildMCP__session-set-defaults
+  - projectPath: /Users/adam/dev/composer-native/composer.xcodeproj
+  - scheme: composer
+  - simulatorName: iPhone 17 Pro (or desired simulator)
+  - useLatestOS: true
 ```
 
-On build failure:
+### Build Commands
+
+| Task | MCP Tool |
+|------|----------|
+| Build for macOS | `mcp__XcodeBuildMCP__build_macos` |
+| Build & run macOS | `mcp__XcodeBuildMCP__build_run_macos` |
+| Build for iOS Simulator | `mcp__XcodeBuildMCP__build_sim` |
+| Build & run on iOS Simulator | `mcp__XcodeBuildMCP__build_run_sim` |
+| Run macOS tests | `mcp__XcodeBuildMCP__test_macos` |
+| Run iOS Simulator tests | `mcp__XcodeBuildMCP__test_sim` |
+| Clean build products | `mcp__XcodeBuildMCP__clean` |
+| Show current settings | `mcp__XcodeBuildMCP__session-show-defaults` |
+
+### Simulator Management
+
+| Task | MCP Tool |
+|------|----------|
+| List available simulators | `mcp__XcodeBuildMCP__list_sims` |
+| Boot simulator | `mcp__XcodeBuildMCP__boot_sim` |
+| Open Simulator app | `mcp__XcodeBuildMCP__open_sim` |
+| Take screenshot | `mcp__XcodeBuildMCP__screenshot` |
+| Get UI hierarchy | `mcp__XcodeBuildMCP__describe_ui` |
+
+### Runtime Log Capture
+
+Capture logs from running app for debugging:
+
+```
+# Start capturing logs
+mcp__XcodeBuildMCP__start_sim_log_cap(bundleId: "com.heyadam.composer")
+
+# ... interact with app ...
+
+# Stop and retrieve logs
+mcp__XcodeBuildMCP__stop_sim_log_cap(logSessionId: <returned id>)
+```
+
+### On Build Failure
+
 - **Auto-fix**: Missing imports, `await` keywords, simple typos
 - **Ask first**: Architectural changes, ambiguous fixes
 - **Mysterious failures**: Use `/axiom:fix-build` (see below)
@@ -27,15 +69,16 @@ On build failure:
 
 | Situation | Use |
 |-----------|-----|
-| Run a build | `/build` or `/build ios` |
-| Run tests | `/test` |
-| Build fails with code errors | `/build` auto-fixes simple issues |
-| Mysterious failures (no clear error, stale code, "No such module") | `/axiom:fix-build` |
+| Run a macOS build | `mcp__XcodeBuildMCP__build_macos` |
+| Run an iOS build | `mcp__XcodeBuildMCP__build_sim` |
+| Run tests | `mcp__XcodeBuildMCP__test_macos` or `test_sim` |
+| Build fails with code errors | Read error output, auto-fix simple issues |
+| Mysterious failures (no clear error, stale code, "No such module") | `/axiom:fix-build` or `mcp__XcodeBuildMCP__clean` |
 | Builds are slow | `/axiom:optimize-build` |
-| Runtime issues (execution, API, state) | Read the debug log (see Debugging section) |
-| Verify new feature works | Build, run app, check debug log |
+| Runtime issues (execution, API, state) | Use `start_sim_log_cap` or read debug log |
+| Verify new feature works | Build, run app, use `screenshot` or `describe_ui` |
 
-**`/build`** executes `xcodebuild` and parses errors. **`/axiom:fix-build`** diagnoses environment issues (zombie processes, stale Derived Data, stuck simulators) that cause mysterious failures.
+**`/axiom:fix-build`** diagnoses environment issues (zombie processes, stale Derived Data, stuck simulators) that cause mysterious failures.
 
 ## Development: Axiom First, Context7 to Verify
 
@@ -52,7 +95,7 @@ On build failure:
 **Before writing tests:**
 1. Invoke `axiom:ui-testing` for UI tests or `axiom:testing` for unit tests
 2. Follow the skill's test patterns and assertions
-3. Use `/test` to run the tests after implementation
+3. Use `mcp__XcodeBuildMCP__test_macos` or `test_sim` to run tests
 
 **Example workflow:**
 ```
@@ -60,8 +103,8 @@ User: "Add a new button with Liquid Glass styling"
 → Invoke axiom:liquid-glass skill
 → Read current Liquid Glass API patterns
 → Implement the button using skill guidance
-→ Build with /build
-→ Verify visually with /axiom:screenshot
+→ Build with mcp__XcodeBuildMCP__build_run_sim (or build_run_macos)
+→ Verify visually with mcp__XcodeBuildMCP__screenshot
 ```
 
 ### Apple Intelligence & iOS 26
@@ -126,17 +169,39 @@ Read "/Users/adam/Library/Containers/com.heyadam.composer/Data/Library/Applicati
 
 **After ANY UI implementation, you MUST verify visually:**
 
-1. Build the app with `/build`
-2. Launch in simulator (user will do this)
-3. Use `/axiom:screenshot` to capture and verify the UI
-4. If interactive testing needed, use `/axiom:test-simulator`
+1. Build and run with `mcp__XcodeBuildMCP__build_run_sim` or `build_run_macos`
+2. Use `mcp__XcodeBuildMCP__screenshot` to capture and verify the UI
+3. Use `mcp__XcodeBuildMCP__describe_ui` to inspect element hierarchy and frames
+4. If interactive testing needed, use XcodeBuildMCP gesture tools (`tap`, `swipe`, etc.)
 
 **Do NOT consider UI work complete until visually verified.** Screenshots catch issues that builds miss (layout, styling, visual regressions).
 
 | Tool | When to Use |
 |------|-------------|
-| `/axiom:screenshot` | Quick visual check of static UI |
-| `/axiom:test-simulator` | Interactive flows, gestures, animations |
+| `mcp__XcodeBuildMCP__screenshot` | Quick visual check of static UI |
+| `mcp__XcodeBuildMCP__describe_ui` | Inspect element frames and hierarchy |
+| `mcp__XcodeBuildMCP__tap/swipe/gesture` | Interactive flows, gestures, animations |
+
+### UI Automation (XcodeBuildMCP)
+
+XcodeBuildMCP provides comprehensive UI automation for the iOS Simulator:
+
+| Tool | Description |
+|------|-------------|
+| `tap` | Tap at coordinates (x, y) or by accessibility `id`/`label` |
+| `long_press` | Long press at coordinates for specified duration |
+| `swipe` | Swipe from (x1, y1) to (x2, y2) |
+| `gesture` | Preset gestures: `scroll-up`, `scroll-down`, `swipe-from-left-edge`, etc. |
+| `type_text` | Type text into focused field |
+| `key_press` | Press single key by keycode |
+| `button` | Press hardware button: `home`, `lock`, `siri`, etc. |
+
+**Workflow for interactive testing:**
+1. `describe_ui` - Get element frames and accessibility IDs
+2. `tap(id: "myButton")` or `tap(x: 200, y: 400)` - Interact with elements
+3. `screenshot` - Verify result
+
+**Important:** Always use `describe_ui` to get precise coordinates before using coordinate-based interactions. Don't guess from screenshots.
 
 ### Skill Trigger Examples
 
@@ -151,8 +216,8 @@ Read "/Users/adam/Library/Containers/com.heyadam.composer/Data/Library/Applicati
 
 **Testing - invoke skill FIRST, then write tests:**
 ```
-"Add unit tests for X"               → axiom:testing → write tests → /test
-"Add UI tests for flow"              → axiom:ui-testing → write tests → /test
+"Add unit tests for X"               → axiom:testing → write tests → test_macos/test_sim
+"Add UI tests for flow"              → axiom:ui-testing → write tests → test_macos/test_sim
 ```
 
 **Debugging - invoke skill to diagnose:**
@@ -253,5 +318,5 @@ Gestures must maintain this priority order - see `.claude/rules/gesture-tests.md
 
 **After modifying gesture code, run tests:**
 ```bash
-/test unit  # Runs HitTesterTests and CanvasStateTests
+mcp__XcodeBuildMCP__test_macos  # Runs HitTesterTests, CanvasStateTests, KeyboardDeletionTests
 ```
