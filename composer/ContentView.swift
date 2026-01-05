@@ -91,6 +91,13 @@ struct ContentView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                .contextMenu {
+                    Button(role: .destructive) {
+                        deleteFlow(flow)
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                }
             }
             .onDelete(perform: deleteFlows)
         }
@@ -223,12 +230,64 @@ struct ContentView: View {
 
     private func deleteFlows(offsets: IndexSet) {
         for index in offsets {
-            let flow = flows[index]
-            if selectedFlow == flow {
+            let flowId = flows[index].id
+            let wasSelected = (selectedFlow?.id == flowId)
+
+            // Fetch fresh flow from ModelContext to avoid stale backing data crash
+            let predicate = #Predicate<Flow> { flow in
+                flow.id == flowId
+            }
+            guard let freshFlows = try? modelContext.fetch(FetchDescriptor(predicate: predicate)),
+                  let freshFlow = freshFlows.first else { continue }
+
+            // Force-materialize relationships before cascade delete
+            // This prevents _FullFutureBackingData crash on iOS
+            for node in freshFlow.nodes {
+                _ = node.id
+            }
+            for edge in freshFlow.edges {
+                _ = edge.id
+            }
+
+            modelContext.delete(freshFlow)
+            if wasSelected {
                 selectedFlow = nil
             }
-            modelContext.delete(flow)
         }
+    }
+
+    private func deleteFlow(_ flow: Flow) {
+        let flowId = flow.id
+
+        // Smart selection: select adjacent flow before deleting
+        if selectedFlow?.id == flowId {
+            if let currentIndex = flows.firstIndex(where: { $0.id == flowId }) {
+                if currentIndex > 0 {
+                    selectedFlow = flows[currentIndex - 1]
+                } else if flows.count > 1 {
+                    selectedFlow = flows[1]
+                } else {
+                    selectedFlow = nil
+                }
+            }
+        }
+
+        // Fetch fresh flow from ModelContext to avoid stale backing data crash
+        let predicate = #Predicate<Flow> { f in
+            f.id == flowId
+        }
+        guard let freshFlows = try? modelContext.fetch(FetchDescriptor(predicate: predicate)),
+              let freshFlow = freshFlows.first else { return }
+
+        // Force-materialize relationships before cascade delete
+        for node in freshFlow.nodes {
+            _ = node.id
+        }
+        for edge in freshFlow.edges {
+            _ = edge.id
+        }
+
+        modelContext.delete(freshFlow)
     }
 }
 
