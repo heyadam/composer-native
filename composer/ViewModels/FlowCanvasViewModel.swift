@@ -146,32 +146,14 @@ final class FlowCanvasViewModel {
 
     /// Delete nodes by IDs
     ///
-    /// - Important: Fetches nodes from ModelContext instead of flow.nodes to avoid
-    ///   stale relationship arrays on iOS.
+    /// Uses `ModelContext.safeDelete(nodeIds:)` to avoid stale relationship arrays on iOS.
     func deleteNodes(_ ids: Set<UUID>) {
-        // Fetch nodes fresh from context (flow.nodes may be stale on iOS)
-        let predicate = #Predicate<FlowNode> { node in
-            ids.contains(node.id)
-        }
-        guard let nodesToDelete = try? modelContext.fetch(FetchDescriptor(predicate: predicate)),
-              !nodesToDelete.isEmpty else {
+        let deletedLabels = modelContext.safeDelete(nodeIds: ids)
+
+        if deletedLabels.isEmpty {
             print("⌨️ No nodes found to delete for IDs: \(ids)")
             return
         }
-
-        let deletedLabels = nodesToDelete.map { $0.label }
-
-        // Get fresh flow from first node
-        guard let freshFlow = nodesToDelete.first?.flow else {
-            print("⌨️ Could not get fresh flow reference")
-            return
-        }
-
-        for node in nodesToDelete {
-            // Edges will be cascade deleted due to relationship rules
-            modelContext.delete(node)
-        }
-        freshFlow.touch()
 
         print("⌨️ Deleted nodes: \(deletedLabels.joined(separator: ", "))")
         DebugLogger.shared.logEvent("Nodes deleted: \(deletedLabels.joined(separator: ", "))")

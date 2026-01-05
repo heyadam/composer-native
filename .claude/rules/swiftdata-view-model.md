@@ -136,6 +136,39 @@ func createEdge(from source: ConnectionPoint, to target: ConnectionPoint) {
 
 ---
 
+## Pattern 4: Safe Cascade Delete
+
+When deleting objects with cascade relationships (`Flow` → `nodes` → `edges`), SwiftData may crash with `_FullFutureBackingData` because child relationships are lazy "futures" that haven't materialized.
+
+**DON'T** delete directly:
+```swift
+// BAD - crashes on iOS with _FullFutureBackingData
+modelContext.delete(flow)
+```
+
+**DO** use the safe delete helper:
+```swift
+// GOOD - fetches fresh + materializes relationships before delete
+modelContext.safeDelete(flowId: flow.id)
+modelContext.safeDelete(nodeIds: selectedNodeIds)
+modelContext.safeDelete(edgeIds: selectedEdgeIds)
+```
+
+### Why This Crashes
+
+1. SwiftData uses lazy loading for relationships
+2. `flow.nodes` may contain "future" proxy objects, not real objects
+3. Cascade delete tries to snapshot children for undo
+4. Snapshotting a future object crashes: `_FullFutureBackingData<FlowNode>`
+
+### The Fix (in `ModelContext+SafeDelete.swift`)
+
+1. Fetch the object fresh from ModelContext
+2. Iterate over relationships to force materialization
+3. Then delete - SwiftData can now snapshot real objects
+
+---
+
 ## Quick Reference
 
 | Scenario | Pattern | Example |
@@ -144,13 +177,19 @@ func createEdge(from source: ConnectionPoint, to target: ConnectionPoint) {
 | Only have UUID(s) | Fetch from ModelContext | `deleteNodes(ids)` |
 | Creating relationships | Fresh flow from fetched object | `createEdge(...)` |
 | Notifying UI of changes | `object.flow?.touch()` | After any mutation |
+| **Cascade delete** | **Use safeDelete helper** | `modelContext.safeDelete(flowId:)` |
 
 ## Key Files
 
+- `Extensions/ModelContext+SafeDelete.swift` - **Safe deletion helpers** (Pattern 4)
+  - `safeDelete(flowId:)` - Safe Flow deletion with cascade
+  - `safeDelete(nodeIds:)` - Safe node deletion
+  - `safeDelete(edgeIds:)` - Safe edge deletion
 - `FlowCanvasViewModel.swift` - All patterns demonstrated
   - `endNodeDrag(_:)` - Pattern 1 (pass object)
-  - `deleteNodes(_:)` - Pattern 2 (fetch from context)
+  - `deleteNodes(_:)` - Pattern 2 (uses safeDelete helper)
   - `createEdge(from:to:)` - Pattern 3 (fresh flow for relationships)
+- `ContentView.swift` - Flow deletion from sidebar (uses safeDelete)
 - `NodeContainerView.swift` - Passes `node` directly to view model
 - `CanvasState.swift` - Port registry (not affected by stale flow)
 

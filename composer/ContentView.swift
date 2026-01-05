@@ -233,23 +233,8 @@ struct ContentView: View {
             let flowId = flows[index].id
             let wasSelected = (selectedFlow?.id == flowId)
 
-            // Fetch fresh flow from ModelContext to avoid stale backing data crash
-            let predicate = #Predicate<Flow> { flow in
-                flow.id == flowId
-            }
-            guard let freshFlows = try? modelContext.fetch(FetchDescriptor(predicate: predicate)),
-                  let freshFlow = freshFlows.first else { continue }
+            modelContext.safeDelete(flowId: flowId)
 
-            // Force-materialize relationships before cascade delete
-            // This prevents _FullFutureBackingData crash on iOS
-            for node in freshFlow.nodes {
-                _ = node.id
-            }
-            for edge in freshFlow.edges {
-                _ = edge.id
-            }
-
-            modelContext.delete(freshFlow)
             if wasSelected {
                 selectedFlow = nil
             }
@@ -272,22 +257,7 @@ struct ContentView: View {
             }
         }
 
-        // Fetch fresh flow from ModelContext to avoid stale backing data crash
-        let predicate = #Predicate<Flow> { f in
-            f.id == flowId
-        }
-        guard let freshFlows = try? modelContext.fetch(FetchDescriptor(predicate: predicate)),
-              let freshFlow = freshFlows.first else { return }
-
-        // Force-materialize relationships before cascade delete
-        for node in freshFlow.nodes {
-            _ = node.id
-        }
-        for edge in freshFlow.edges {
-            _ = edge.id
-        }
-
-        modelContext.delete(freshFlow)
+        modelContext.safeDelete(flowId: flowId)
     }
 }
 
