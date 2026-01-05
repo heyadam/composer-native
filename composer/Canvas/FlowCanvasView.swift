@@ -34,6 +34,8 @@ struct FlowCanvasView: View {
     @FocusState private var canvasFocused: Bool
     #endif
 
+    // MARK: - View Body
+
     var body: some View {
         GeometryReader { geometry in
             ZStack {
@@ -200,6 +202,8 @@ struct FlowCanvasView: View {
                 }
             }
     }
+
+    // MARK: - Hit Testing
 
     private func hitTestNode(at location: CGPoint) -> UUID? {
         for node in flow.nodes {
