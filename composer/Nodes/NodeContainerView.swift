@@ -106,7 +106,9 @@ struct NodeContainerView: View {
     // MARK: - Position
 
     private var screenPosition: CGPoint {
-        let worldPosition = canvasViewModel?.displayPosition(for: node.id) ?? node.position
+        // Use transient position during drag, otherwise read directly from node
+        // Reading node.position directly ensures proper SwiftData observation
+        let worldPosition = canvasViewModel?.transientPosition(for: node.id) ?? node.position
         return CoordinateTransform.worldToScreen(
             worldPosition,
             offset: state.offset,
@@ -142,6 +144,7 @@ struct NodeContainerView: View {
                 // On first touch, check if we started on a port
                 if lastDragPosition == .zero {
                     // Check if drag started on a port - use larger hit radius for reliability
+                    // The returned tuple includes isOutput but we only need to check existence here
                     if state.findPort(near: value.startLocation, excludingNode: nil, hitRadius: 30) != nil {
                         ignoringCurrentDrag = true
                         return
@@ -175,10 +178,27 @@ struct NodeContainerView: View {
 
                 canvasViewModel?.updateNodeDrag(node.id, to: newPosition)
             }
-            .onEnded { _ in
+            .onEnded { value in
                 // Only end drag if we actually started one
                 if lastDragPosition != .zero {
-                    canvasViewModel?.endNodeDrag(node.id)
+                    // Calculate final position from the gesture end value
+                    // (iPad may not call onChanged with the final position before onEnded)
+                    let screenDelta = CGSize(
+                        width: value.translation.width,
+                        height: value.translation.height
+                    )
+                    let worldDelta = CGSize(
+                        width: screenDelta.width / state.scale,
+                        height: screenDelta.height / state.scale
+                    )
+                    let finalPosition = CGPoint(
+                        x: lastDragPosition.x + worldDelta.width,
+                        y: lastDragPosition.y + worldDelta.height
+                    )
+
+                    canvasViewModel?.updateNodeDrag(node.id, to: finalPosition)
+                    // Pass node directly - DO NOT use node ID lookup (see endNodeDrag docs)
+                    canvasViewModel?.endNodeDrag(node)
                     lastDragPosition = .zero
                 }
                 state.isDraggingNode = false

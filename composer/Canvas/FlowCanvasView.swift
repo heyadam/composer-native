@@ -29,6 +29,11 @@ struct FlowCanvasView: View {
     @State private var lastPanOffset: CGSize = .zero
     @State private var lastScale: CGFloat = 1.0
 
+    // Focus state for keyboard handling (iOS only)
+    #if os(iOS)
+    @FocusState private var canvasFocused: Bool
+    #endif
+
     var body: some View {
         GeometryReader { geometry in
             ZStack {
@@ -130,7 +135,7 @@ struct FlowCanvasView: View {
             )
         )
         #else
-        // iOS: Use UIKeyCommand for hardware keyboard deletion (avoids focusable() constraint conflicts)
+        // iOS: Use UIKeyCommand with persistent first responder
         .background(
             KeyboardDeleteHandler(
                 canDelete: { !canvasState.isEditingNode && canvasState.hasSelection },
@@ -375,6 +380,21 @@ struct ScrollWheelModifier: NSViewRepresentable {
 // MARK: - iOS Input Handler (Keyboard)
 
 #if os(iOS)
+// Helper to find current first responder
+extension UIResponder {
+    private static weak var _currentFirstResponder: UIResponder?
+
+    static var currentFirstResponder: UIResponder? {
+        _currentFirstResponder = nil
+        UIApplication.shared.sendAction(#selector(findFirstResponder(_:)), to: nil, from: nil, for: nil)
+        return _currentFirstResponder
+    }
+
+    @objc private func findFirstResponder(_ sender: Any) {
+        UIResponder._currentFirstResponder = self
+    }
+}
+
 struct KeyboardDeleteHandler: UIViewControllerRepresentable {
     let canDelete: () -> Bool
     let onDelete: () -> Void
@@ -394,6 +414,7 @@ struct KeyboardDeleteHandler: UIViewControllerRepresentable {
     class KeyboardDeleteViewController: UIViewController {
         var canDelete: (() -> Bool)?
         var onDelete: (() -> Void)?
+        private var refocusTimer: Timer?
 
         override var canBecomeFirstResponder: Bool { true }
 
@@ -411,14 +432,36 @@ struct KeyboardDeleteHandler: UIViewControllerRepresentable {
         }
 
         @objc private func handleDelete() {
-            // Only delete if not editing text and something is selected
-            guard canDelete?() == true else { return }
+            let canDeleteResult = canDelete?() ?? false
+            print("⌨️ DELETE KEY pressed - canDelete: \(canDeleteResult)")
+            guard canDeleteResult else { return }
+            print("⌨️ Executing delete!")
             onDelete?()
         }
 
         override func viewDidAppear(_ animated: Bool) {
             super.viewDidAppear(animated)
             becomeFirstResponder()
+
+            // Periodically reclaim first responder if we lost it
+            // (except when a text field is active)
+            refocusTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { [weak self] _ in
+                guard let self = self else { return }
+                if !self.isFirstResponder {
+                    // Don't steal focus from text fields
+                    if let firstResponder = UIResponder.currentFirstResponder,
+                       firstResponder is UITextView || firstResponder is UITextField {
+                        return
+                    }
+                    self.becomeFirstResponder()
+                }
+            }
+        }
+
+        override func viewWillDisappear(_ animated: Bool) {
+            super.viewWillDisappear(animated)
+            refocusTimer?.invalidate()
+            refocusTimer = nil
         }
     }
 }

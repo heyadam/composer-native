@@ -47,11 +47,15 @@ final class CanvasState {
     /// Registered port data types (key: "nodeId:portId", value: data type)
     var portDataTypes: [String: PortDataType] = [:]
 
-    /// Register a port's screen position and data type
+    /// Registered port directions (key: "nodeId:portId", value: isOutput)
+    var portDirections: [String: Bool] = [:]
+
+    /// Register a port's screen position, data type, and direction
     func registerPort(nodeId: UUID, portId: String, isOutput: Bool, dataType: PortDataType, position: CGPoint) {
         let key = "\(nodeId):\(portId)"
         portPositions[key] = position
         portDataTypes[key] = dataType
+        portDirections[key] = isOutput
     }
 
     /// Get the data type for a registered port
@@ -60,8 +64,15 @@ final class CanvasState {
         return portDataTypes[key]
     }
 
+    /// Get the direction for a registered port
+    func portIsOutput(nodeId: UUID, portId: String) -> Bool? {
+        let key = "\(nodeId):\(portId)"
+        return portDirections[key]
+    }
+
     /// Find a port near the given screen position
-    func findPort(near position: CGPoint, excludingNode: UUID?, hitRadius: CGFloat = 20) -> (nodeId: UUID, portId: String)? {
+    /// Returns the port info including its actual direction (isOutput)
+    func findPort(near position: CGPoint, excludingNode: UUID?, hitRadius: CGFloat = 20) -> (nodeId: UUID, portId: String, isOutput: Bool)? {
         for (key, portPos) in portPositions {
             let distance = hypot(position.x - portPos.x, position.y - portPos.y)
             if distance <= hitRadius {
@@ -75,7 +86,10 @@ final class CanvasState {
                     continue
                 }
 
-                return (nodeId, portId)
+                // Get the actual direction from registry
+                let isOutput = portDirections[key] ?? false
+
+                return (nodeId, portId, isOutput)
             }
         }
         return nil

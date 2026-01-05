@@ -86,6 +86,7 @@ User: "Add a new button with Liquid Glass styling"
 - **Supabase**: Use `supabase-swift` SDK and GitHub MCP server for all backend data
 - `swiftdata` - Local persistence with @Model, @Query, ModelContext
 - For migrations: Prefer Supabase migrations over Axiom database skills
+- **IMPORTANT**: See `.claude/rules/swiftdata-view-model.md` for the "Pass Objects, Not IDs" pattern - prevents stale relationship arrays on iOS
 
 ### Debugging
 - `memory-debugging` - Memory leaks, retain cycles

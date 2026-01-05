@@ -3,6 +3,8 @@
 //  composer
 //
 //  Drag gesture for moving nodes
+//  NOTE: This modifier is currently unused - NodeContainerView has its own inline gesture.
+//  Kept for potential future multi-node drag implementation.
 //
 
 import SwiftUI
@@ -10,7 +12,7 @@ import SwiftUI
 /// Creates a drag gesture for nodes
 /// Updates transient position in ViewModel during drag, commits to SwiftData on end
 struct NodeDragGestureModifier: ViewModifier {
-    let nodeId: UUID
+    let node: FlowNode
     let canvasState: CanvasState
     let viewModel: FlowCanvasViewModel?
 
@@ -30,12 +32,12 @@ struct NodeDragGestureModifier: ViewModifier {
                 if !isDragging {
                     // Start drag
                     isDragging = true
-                    startPosition = viewModel.displayPosition(for: nodeId) ?? .zero
-                    viewModel.beginNodeDrag(nodeId, at: startPosition)
+                    startPosition = viewModel.displayPosition(for: node.id) ?? .zero
+                    viewModel.beginNodeDrag(node.id, at: startPosition)
 
                     // Select on drag if not already selected
-                    if !canvasState.isNodeSelected(nodeId) {
-                        canvasState.selectNode(nodeId)
+                    if !canvasState.isNodeSelected(node.id) {
+                        canvasState.selectNode(node.id)
                     }
                 }
 
@@ -50,28 +52,13 @@ struct NodeDragGestureModifier: ViewModifier {
                     y: startPosition.y + worldDelta.height
                 )
 
-                viewModel.updateNodeDrag(nodeId, to: newPosition)
-
-                // If multiple nodes selected, move them all together
-                for selectedId in canvasState.selectedNodeIds where selectedId != nodeId {
-                    if let selectedStart = viewModel.displayPosition(for: selectedId) {
-                        // This is simplified - in a full implementation we'd track
-                        // start positions for all selected nodes
-                        viewModel.updateNodeDrag(selectedId, to: CGPoint(
-                            x: selectedStart.x + worldDelta.width,
-                            y: selectedStart.y + worldDelta.height
-                        ))
-                    }
-                }
+                viewModel.updateNodeDrag(node.id, to: newPosition)
             }
             .onEnded { _ in
                 guard let viewModel else { return }
 
-                // Commit all dragged nodes
-                viewModel.endNodeDrag(nodeId)
-                for selectedId in canvasState.selectedNodeIds where selectedId != nodeId {
-                    viewModel.endNodeDrag(selectedId)
-                }
+                // Commit the drag - pass node directly to avoid stale flow.nodes issue
+                viewModel.endNodeDrag(node)
 
                 isDragging = false
                 startPosition = .zero
@@ -82,12 +69,12 @@ struct NodeDragGestureModifier: ViewModifier {
 extension View {
     /// Apply node drag gesture
     func nodeDragGesture(
-        nodeId: UUID,
+        node: FlowNode,
         state: CanvasState,
         viewModel: FlowCanvasViewModel?
     ) -> some View {
         modifier(NodeDragGestureModifier(
-            nodeId: nodeId,
+            node: node,
             canvasState: state,
             viewModel: viewModel
         ))

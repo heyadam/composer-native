@@ -53,8 +53,13 @@ final class FlowCanvasViewModel {
     // Transient state (not persisted during drag)
     var draggedNodePositions: [UUID: CGPoint] = [:]
 
-    /// Whether any nodes are currently being dragged
-    var isDragging: Bool { !draggedNodePositions.isEmpty }
+    // Track which nodes have completed drags (position committed to SwiftData)
+    private var committedDragNodeIds: Set<UUID> = []
+
+    /// Whether any nodes are currently being dragged (not just have cached positions)
+    var isDragging: Bool {
+        draggedNodePositions.keys.contains { !committedDragNodeIds.contains($0) }
+    }
 
     /// Whether flow execution is in progress
     private(set) var isExecuting: Bool = false
@@ -74,6 +79,8 @@ final class FlowCanvasViewModel {
 
     /// Begin dragging a node - stores initial position
     func beginNodeDrag(_ nodeId: UUID, at position: CGPoint) {
+        // Clear any previous committed state for this node
+        committedDragNodeIds.remove(nodeId)
         draggedNodePositions[nodeId] = position
     }
 
@@ -83,19 +90,40 @@ final class FlowCanvasViewModel {
     }
 
     /// End drag and commit position to SwiftData
-    func endNodeDrag(_ nodeId: UUID) {
-        guard let finalPosition = draggedNodePositions[nodeId],
-              let node = flow.nodes.first(where: { $0.id == nodeId }) else {
+    ///
+    /// - Important: Pass the node object directly from the view, NOT by looking it up
+    ///   via `flow.nodes.first(where:)`. On iOS, SwiftUI may recreate views with fresh
+    ///   SwiftData objects, causing the view model's `flow.nodes` to become stale/empty
+    ///   while the view's node references remain valid.
+    ///
+    /// - Parameter node: The node being dragged (passed directly from the view)
+    func endNodeDrag(_ node: FlowNode) {
+        let nodeId = node.id
+
+        guard let finalPosition = draggedNodePositions[nodeId] else {
             draggedNodePositions.removeValue(forKey: nodeId)
             return
         }
 
         node.position = finalPosition
         flow.touch()
-        draggedNodePositions.removeValue(forKey: nodeId)
+
+        DebugLogger.shared.logEvent("Node moved: \(node.label) to (\(Int(finalPosition.x)), \(Int(finalPosition.y)))")
+
+        // Mark as committed but KEEP the position in draggedNodePositions
+        // This prevents the view from reading stale SwiftData values
+        // The position will be cleared when the next drag of this node starts
+        committedDragNodeIds.insert(nodeId)
+    }
+
+    /// Get transient drag position for a node (nil if not being dragged)
+    func transientPosition(for nodeId: UUID) -> CGPoint? {
+        draggedNodePositions[nodeId]
     }
 
     /// Get current display position for a node (transient or persisted)
+    /// Note: Prefer using transientPosition + node.position directly in views
+    /// for proper SwiftData observation
     func displayPosition(for nodeId: UUID) -> CGPoint? {
         if let dragged = draggedNodePositions[nodeId] {
             return dragged
@@ -117,20 +145,36 @@ final class FlowCanvasViewModel {
     }
 
     /// Delete nodes by IDs
+    ///
+    /// - Important: Fetches nodes from ModelContext instead of flow.nodes to avoid
+    ///   stale relationship arrays on iOS.
     func deleteNodes(_ ids: Set<UUID>) {
-        let nodesToDelete = flow.nodes.filter { ids.contains($0.id) }
+        // Fetch nodes fresh from context (flow.nodes may be stale on iOS)
+        let predicate = #Predicate<FlowNode> { node in
+            ids.contains(node.id)
+        }
+        guard let nodesToDelete = try? modelContext.fetch(FetchDescriptor(predicate: predicate)),
+              !nodesToDelete.isEmpty else {
+            print("⌨️ No nodes found to delete for IDs: \(ids)")
+            return
+        }
+
         let deletedLabels = nodesToDelete.map { $0.label }
+
+        // Get fresh flow from first node
+        guard let freshFlow = nodesToDelete.first?.flow else {
+            print("⌨️ Could not get fresh flow reference")
+            return
+        }
 
         for node in nodesToDelete {
             // Edges will be cascade deleted due to relationship rules
-            flow.nodes.removeAll { $0.id == node.id }
             modelContext.delete(node)
         }
-        flow.touch()
+        freshFlow.touch()
 
-        if !deletedLabels.isEmpty {
-            DebugLogger.shared.logEvent("Nodes deleted: \(deletedLabels.joined(separator: ", "))")
-        }
+        print("⌨️ Deleted nodes: \(deletedLabels.joined(separator: ", "))")
+        DebugLogger.shared.logEvent("Nodes deleted: \(deletedLabels.joined(separator: ", "))")
     }
 
     /// Delete a single node
@@ -141,6 +185,9 @@ final class FlowCanvasViewModel {
     // MARK: - Edge Operations
 
     /// Create an edge between two connection points
+    ///
+    /// - Important: Fetches nodes from ModelContext instead of flow.nodes to avoid
+    ///   stale relationship arrays on iOS (same pattern as endNodeDrag).
     func createEdge(from source: ConnectionPoint, to target: ConnectionPoint) throws {
         // Validate: source must be output, target must be input
         guard source.isOutput && !target.isOutput else {
@@ -152,9 +199,17 @@ final class FlowCanvasViewModel {
             throw FlowError.incompatiblePorts
         }
 
-        // Find nodes
-        guard let sourceNode = flow.nodes.first(where: { $0.id == source.nodeId }),
-              let targetNode = flow.nodes.first(where: { $0.id == target.nodeId }) else {
+        // Find nodes from ModelContext (not flow.nodes which can be stale on iOS)
+        let sourceId = source.nodeId
+        let targetId = target.nodeId
+        let sourcePredicate = #Predicate<FlowNode> { $0.id == sourceId }
+        let targetPredicate = #Predicate<FlowNode> { $0.id == targetId }
+
+        let sourceNodes = try? modelContext.fetch(FetchDescriptor(predicate: sourcePredicate))
+        let targetNodes = try? modelContext.fetch(FetchDescriptor(predicate: targetPredicate))
+
+        guard let sourceNode = sourceNodes?.first,
+              let targetNode = targetNodes?.first else {
             throw FlowError.nodeNotFound
         }
 
@@ -168,52 +223,75 @@ final class FlowCanvasViewModel {
             throw FlowError.circularConnection
         }
 
+        // Get fresh flow reference from the node (avoids stale ViewModel flow on iOS)
+        guard let freshFlow = sourceNode.flow else {
+            throw FlowError.nodeNotFound
+        }
+
         // Create edge
         let edge = FlowEdge(
             sourceHandle: source.portId,
             targetHandle: target.portId,
             dataType: source.portType
         )
-        edge.flow = flow
-        flow.edges.append(edge)
-        modelContext.insert(edge)
 
-        // Set relationships AFTER insertion to ensure SwiftData syncs inverse arrays
+        // Use freshFlow for relationships so SwiftUI observes the change
+        modelContext.insert(edge)
+        edge.flow = freshFlow
         edge.sourceNode = sourceNode
         edge.targetNode = targetNode
 
-        flow.touch()
+        freshFlow.touch()
 
+        print("🔌 Edge inserted into flow with \(freshFlow.edges.count) edges")
         DebugLogger.shared.logEvent("Edge created: \(sourceNode.label).\(source.portId) → \(targetNode.label).\(target.portId)")
     }
 
     /// Delete an edge by ID
+    ///
+    /// - Important: Fetches edge from ModelContext to avoid stale flow.edges on iOS.
     func deleteEdge(_ edgeId: UUID) {
-        guard let edge = flow.edges.first(where: { $0.id == edgeId }) else { return }
+        let predicate = #Predicate<FlowEdge> { $0.id == edgeId }
+        guard let edges = try? modelContext.fetch(FetchDescriptor(predicate: predicate)),
+              let edge = edges.first else { return }
+
         let sourceLabel = edge.sourceNode?.label ?? "?"
         let targetLabel = edge.targetNode?.label ?? "?"
 
-        flow.edges.removeAll { $0.id == edgeId }
-        modelContext.delete(edge)
-        flow.touch()
+        // Get fresh flow reference
+        if let freshFlow = edge.flow {
+            modelContext.delete(edge)
+            freshFlow.touch()
+        } else {
+            modelContext.delete(edge)
+        }
 
         DebugLogger.shared.logEvent("Edge deleted: \(sourceLabel) → \(targetLabel)")
     }
 
     /// Delete edges by IDs
+    ///
+    /// - Important: Fetches edges from ModelContext to avoid stale flow.edges on iOS.
     func deleteEdges(_ ids: Set<UUID>) {
-        let edgesToDelete = flow.edges.filter { ids.contains($0.id) }
+        let predicate = #Predicate<FlowEdge> { edge in
+            ids.contains(edge.id)
+        }
+        guard let edgesToDelete = try? modelContext.fetch(FetchDescriptor(predicate: predicate)),
+              !edgesToDelete.isEmpty else { return }
+
         let deletedDescriptions = edgesToDelete.map { edge in
             let sourceLabel = edge.sourceNode?.label ?? "?"
             let targetLabel = edge.targetNode?.label ?? "?"
             return "\(sourceLabel) → \(targetLabel)"
         }
 
+        // Get fresh flow from first edge
+        let freshFlow = edgesToDelete.first?.flow
+
         for edge in edgesToDelete {
-            flow.edges.removeAll { $0.id == edge.id }
             modelContext.delete(edge)
         }
-        flow.touch()
+        freshFlow?.touch()
 
         if !deletedDescriptions.isEmpty {
             DebugLogger.shared.logEvent("Edges deleted: \(deletedDescriptions.joined(separator: ", "))")

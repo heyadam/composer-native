@@ -44,8 +44,9 @@ struct PortView: View {
     private var portCircleWithGesture: some View {
         ZStack {
             // Invisible hit target - larger than visual circle
+            // Use near-invisible white instead of clear for reliable iOS touch handling
             Circle()
-                .fill(Color.clear)
+                .fill(Color.white.opacity(0.001))
                 .frame(width: hitTargetSize, height: hitTargetSize)
 
             // Visual circle (centered)
@@ -124,6 +125,9 @@ struct PortView: View {
 
                     connectionViewModel.beginConnection(from: sourcePoint)
                     canvasState.activeConnection = sourcePoint
+
+                    print("🔌 CONNECTION DRAG STARTED from \(isOutput ? "output" : "input") port '\(port.id)'")
+                    print("🔌 Registered ports: \(canvasState.portPositions.count), directions: \(canvasState.portDirections.count)")
                 }
 
                 canvasState.connectionEndPosition = value.location
@@ -138,8 +142,13 @@ struct PortView: View {
 
                 guard let canvasState, let connectionViewModel, let nodeId else { return }
 
+                print("🔌 CONNECTION DRAG ENDED at \(value.location)")
+
                 // Check if we dropped over a compatible port
-                if let hitPort = canvasState.findPort(near: value.location, excludingNode: nodeId) {
+                // Use larger hit radius (30pt) for touch-friendly connection dropping
+                if let hitPort = canvasState.findPort(near: value.location, excludingNode: nodeId, hitRadius: 30) {
+                    print("🔌 Found target port '\(hitPort.portId)' isOutput: \(hitPort.isOutput)")
+
                     // Get the data type from registry (O(1) lookup)
                     let targetDataType = canvasState.portDataType(nodeId: hitPort.nodeId, portId: hitPort.portId) ?? .string
 
@@ -147,18 +156,34 @@ struct PortView: View {
                         nodeId: hitPort.nodeId,
                         portId: hitPort.portId,
                         portType: targetDataType,
-                        isOutput: !isOutput  // Target should be opposite direction
+                        isOutput: hitPort.isOutput  // Use actual port direction from registry
                     )
 
-                    if connectionViewModel.canConnect(to: targetPoint) {
+                    let canConnect = connectionViewModel.canConnect(to: targetPoint)
+                    print("🔌 canConnect: \(canConnect)")
+
+                    if canConnect {
                         do {
                             try connectionViewModel.completeConnection(to: targetPoint)
+                            print("🔌 Connection completed!")
                             return
                         } catch {
+                            print("🔌 Connection error: \(error)")
                             triggerErrorFeedback()
                         }
                     } else {
+                        print("🔌 Connection rejected by canConnect")
                         triggerErrorFeedback()
+                    }
+                } else {
+                    print("🔌 NO PORT FOUND near drop location")
+                    // Log nearby registered ports for debugging
+                    for (key, pos) in canvasState.portPositions {
+                        let distance = hypot(value.location.x - pos.x, value.location.y - pos.y)
+                        if distance < 150 {
+                            let dir = canvasState.portDirections[key] ?? false
+                            print("🔌   Nearby: \(key.suffix(20)) dist=\(Int(distance))pt isOutput=\(dir)")
+                        }
                     }
                 }
 

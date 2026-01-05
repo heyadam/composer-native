@@ -2,7 +2,7 @@
 //  DebugLogger.swift
 //  composer
 //
-//  Centralized debug logging that writes to a file Claude can read (macOS only)
+//  Centralized debug logging that writes to a file Claude can read
 //
 
 import Foundation
@@ -16,9 +16,7 @@ enum LogCategory: String {
     case event = "EVENT"
 }
 
-#if os(macOS)
-
-/// Centralized debug logger that writes to ~/Library/Logs/Composer/debug.log
+/// Centralized debug logger that writes to app container logs
 @MainActor
 final class DebugLogger {
     static let shared = DebugLogger()
@@ -33,8 +31,12 @@ final class DebugLogger {
         if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
             logsDir = appSupport.appendingPathComponent("Composer/Logs")
         } else {
+            #if os(macOS)
             logsDir = FileManager.default.homeDirectoryForCurrentUser
                 .appendingPathComponent("Library/Logs/Composer")
+            #else
+            logsDir = FileManager.default.temporaryDirectory.appendingPathComponent("Composer/Logs")
+            #endif
         }
 
         // Create directory if needed
@@ -266,26 +268,3 @@ final class DebugLogger {
         }
     }
 }
-
-#else
-
-/// No-op debug logger for iOS (debugging only supported on macOS)
-@MainActor
-final class DebugLogger {
-    static let shared = DebugLogger()
-
-    var logFilePath: String { "" }
-
-    func log(_ category: LogCategory, _ message: String) {}
-    func logFlowState(_ flow: Flow) {}
-    func logExecutionStart(flowName: String, nodeCount: Int) {}
-    func logExecutionComplete(flowName: String, duration: TimeInterval, nodeResults: [String]) {}
-    func logNodeExecution(label: String, type: String, status: String, output: String?, error: String?, duration: TimeInterval?) {}
-    func logAPIRequest(url: URL, method: String, body: [String: Any]) {}
-    func logAPIResponse(statusCode: Int, contentType: String) {}
-    func logAPIEvent(_ event: String) {}
-    func logError(_ error: Error, context: String) {}
-    func logEvent(_ message: String) {}
-}
-
-#endif
