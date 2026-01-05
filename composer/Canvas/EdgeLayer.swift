@@ -141,7 +141,8 @@ struct EdgeHitTestingLayer: View {
     let state: CanvasState
     let viewModel: FlowCanvasViewModel?
 
-    private let hitTolerance: CGFloat = 8
+    // 22pt radius = 44pt diameter touch target (Apple HIG minimum)
+    private let hitTolerance: CGFloat = 22
 
     var body: some View {
         // Use invisible edge paths for hit testing instead of full-canvas contentShape

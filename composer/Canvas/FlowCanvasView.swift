@@ -51,12 +51,12 @@ struct FlowCanvasView: View {
                 )
                 .allowsHitTesting(false)
 
-                // Edge hit testing layer - temporarily disabled
-                // EdgeHitTestingLayer(
-                //     edges: flow.edges,
-                //     state: canvasState,
-                //     viewModel: viewModel
-                // )
+                // Edge hit testing (tap to select) - below nodes so nodes win taps
+                EdgeHitTestingLayer(
+                    edges: flow.edges,
+                    state: canvasState,
+                    viewModel: viewModel
+                )
 
                 // Edge context menus (for right-click/long-press delete)
                 EdgeContextMenuLayer(
@@ -64,7 +64,6 @@ struct FlowCanvasView: View {
                     state: canvasState,
                     viewModel: viewModel
                 )
-                .allowsHitTesting(false) // Temporarily disable to debug node selection
 
                 // Connection preview
                 ConnectionPreview(
@@ -184,12 +183,18 @@ struct FlowCanvasView: View {
     private var canvasTapGesture: some Gesture {
         SpatialTapGesture(coordinateSpace: .named(CanvasCoordinateSpace.name))
             .onEnded { value in
-                // Only clear selection if we didn't tap on a node or edge
-                // Nodes handle their own selection, so we only clear if tapping empty canvas
+                // Check what was tapped
                 let tappedNode = hitTestNode(at: value.location)
                 let tappedEdge = hitTestEdge(at: value.location)
 
-                if tappedNode == nil && tappedEdge == nil {
+                if tappedNode != nil {
+                    // Nodes handle their own selection via NodeContainerView
+                    return
+                } else if let edgeId = tappedEdge {
+                    // Select the tapped edge
+                    canvasState.selectEdge(edgeId)
+                } else {
+                    // Tapped empty canvas - clear selection
                     canvasState.clearSelection()
                     dismissKeyboard()
                 }
@@ -238,7 +243,8 @@ struct FlowCanvasView: View {
             }
 
             let distance = EdgeLayer.distanceToEdge(from: location, edgeStart: start, edgeEnd: end)
-            if distance < 8 * canvasState.scale {
+            // 22pt hit radius for touch-friendly target (matches EdgeHitTestingLayer)
+            if distance < 22 * canvasState.scale {
                 return edge.id
             }
         }
