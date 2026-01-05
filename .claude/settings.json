@@ -1,7 +1,13 @@
 {
+  "permissions": {
+    "allow": [
+      "Read(~/Library/Containers/com.heyadam.composer/**)"
+    ]
+  },
   "enabledPlugins": {
     "supabase@claude-plugins-official": true,
     "axiom@axiom-marketplace": true,
-    ".claude/plugins/xcode-tools": true
+    ".claude/plugins/xcode-tools": true,
+    "swift-lsp@claude-plugins-official": true
   }
 }

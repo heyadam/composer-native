@@ -35,14 +35,19 @@ struct TextInputNodeView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .frame(minHeight: 60, maxHeight: 120)
                 .focused($isFocused)
+                .onChange(of: text) { _, newValue in
+                    // Save on EVERY change, not just unfocus
+                    // Critical: User may click Play without unfocusing the text editor
+                    guard hasInitializedText else { return }
+                    node.encodeData(TextInputData(text: newValue))
+                    node.flow?.touch()
+                }
                 .onChange(of: isFocused) { _, newValue in
                     state.isEditingNode = newValue
                     if newValue {
                         viewModel?.beginEditing()
                     } else {
                         viewModel?.endEditing()
-                        // Save text to node
-                        viewModel?.textContent = text
                     }
                 }
         }
@@ -51,8 +56,8 @@ struct TextInputNodeView: View {
         }
         .onChange(of: viewModel?.textContent) { _, newValue in
             // Sync when viewModel becomes available or content changes externally
-            if !hasInitializedText, let content = newValue {
-                text = content
+            if !hasInitializedText {
+                text = newValue ?? ""
                 hasInitializedText = true
             }
         }
@@ -64,11 +69,13 @@ struct TextInputNodeView: View {
         // Try viewModel first, fall back to node's stored data
         if let content = viewModel?.textContent {
             text = content
-            hasInitializedText = true
         } else if let storedData = node.decodeData(TextInputData.self) {
             text = storedData.text
-            hasInitializedText = true
         }
+        // Always mark as initialized - even for empty nodes
+        // This is critical: without this, onChange(of: text) returns early
+        // and user input is never saved
+        hasInitializedText = true
     }
 }
 

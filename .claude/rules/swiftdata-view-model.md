@@ -169,6 +169,54 @@ modelContext.safeDelete(edgeIds: selectedEdgeIds)
 
 ---
 
+## Pattern 5: @State Initialization Guards
+
+When using `@State` flags to prevent `onChange` handlers from firing during initial sync, ensure the flag gets set to `true` **even for empty initial values**.
+
+**DON'T** only set the flag when content exists:
+```swift
+// BAD - empty nodes never get initialized, onChange always returns early
+private func initializeTextIfNeeded() {
+    guard !hasInitializedText else { return }
+
+    if let content = viewModel?.textContent {
+        text = content
+        hasInitializedText = true  // Only runs if content exists!
+    }
+}
+
+.onChange(of: text) { _, newValue in
+    guard hasInitializedText else { return }  // Always returns early for empty nodes
+    node.encodeData(TextInputData(text: newValue))
+}
+```
+
+**DO** always set the flag after initialization attempt:
+```swift
+// GOOD - flag is set regardless of initial content
+private func initializeTextIfNeeded() {
+    guard !hasInitializedText else { return }
+
+    if let content = viewModel?.textContent {
+        text = content
+    } else if let storedData = node.decodeData(TextInputData.self) {
+        text = storedData.text
+    }
+    // Always mark as initialized - even for empty nodes
+    hasInitializedText = true
+}
+```
+
+### Symptoms
+- User input silently ignored on first run
+- Works on second run (after some state gets saved)
+- Affects new/empty nodes more than nodes with existing data
+
+### Key File
+- `Nodes/TextInputNodeView.swift` - Text input with initialization guard
+
+---
+
 ## Quick Reference
 
 | Scenario | Pattern | Example |
@@ -178,6 +226,7 @@ modelContext.safeDelete(edgeIds: selectedEdgeIds)
 | Creating relationships | Fresh flow from fetched object | `createEdge(...)` |
 | Notifying UI of changes | `object.flow?.touch()` | After any mutation |
 | **Cascade delete** | **Use safeDelete helper** | `modelContext.safeDelete(flowId:)` |
+| **@State init guard** | **Always set flag to true** | `hasInitializedText = true` |
 
 ## Key Files
 
@@ -192,6 +241,7 @@ modelContext.safeDelete(edgeIds: selectedEdgeIds)
 - `ContentView.swift` - Flow deletion from sidebar (uses safeDelete)
 - `NodeContainerView.swift` - Passes `node` directly to view model
 - `CanvasState.swift` - Port registry (not affected by stale flow)
+- `Nodes/TextInputNodeView.swift` - **@State initialization guard** (Pattern 5)
 
 ## Symptoms of Stale Flow
 

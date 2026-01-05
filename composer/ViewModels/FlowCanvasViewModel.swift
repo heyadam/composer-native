@@ -388,9 +388,19 @@ final class FlowCanvasViewModel {
     private func executeNode(_ node: FlowNode) async {
         switch node.nodeType {
         case .textInput:
-            // Text input nodes just output their stored text
-            let data = node.decodeData(TextInputData.self) ?? TextInputData()
-            nodeOutputs[node.id] = data.text
+            // Fetch fresh node from ModelContext to ensure we read latest dataJSON
+            // Critical for iPad where flow.nodes may contain stale object references
+            let nodeId = node.id
+            let predicate = #Predicate<FlowNode> { $0.id == nodeId }
+            if let freshNodes = try? modelContext.fetch(FetchDescriptor(predicate: predicate)),
+               let freshNode = freshNodes.first {
+                let data = freshNode.decodeData(TextInputData.self) ?? TextInputData()
+                nodeOutputs[node.id] = data.text
+            } else {
+                // Fallback to passed node if fetch fails
+                let data = node.decodeData(TextInputData.self) ?? TextInputData()
+                nodeOutputs[node.id] = data.text
+            }
 
         case .textGeneration:
             await executeTextGeneration(node)

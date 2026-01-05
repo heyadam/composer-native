@@ -69,6 +69,9 @@ final class NodeViewModel {
         }
         set {
             node.encodeData(TextInputData(text: newValue))
+            // Signal SwiftData that the flow changed - critical for iPad where
+            // view recreation can cause stale object references
+            node.flow?.touch()
         }
     }
 }
