@@ -31,9 +31,13 @@ struct TextInputNodeView: View {
             TextEditor(text: $text)
                 .font(.system(size: 13, design: .monospaced))
                 .scrollContentBackground(.hidden)
-                .background(Color.black.opacity(0.2))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .frame(minHeight: 60, maxHeight: 120)
+                .background(Color.black.opacity(0.3))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
+                }
+                .frame(minHeight: 70, maxHeight: 140)
                 .focused($isFocused)
                 .onChange(of: text) { _, newValue in
                     // Save on EVERY change, not just unfocus

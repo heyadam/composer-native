@@ -289,14 +289,17 @@ struct NodeLayer: View {
     let connectionViewModel: ConnectionViewModel?
 
     var body: some View {
-        ForEach(nodes) { node in
-            NodeContainerView(
-                node: node,
-                state: state,
-                canvasViewModel: viewModel,
-                connectionViewModel: connectionViewModel
-            )
-            .id(node.id)  // Explicit identity for SwiftUI
+        // Wrap nodes in GlassEffectContainer for better blending and morphing
+        GlassEffectContainer(spacing: 60.0) {
+            ForEach(nodes) { node in
+                NodeContainerView(
+                    node: node,
+                    state: state,
+                    canvasViewModel: viewModel,
+                    connectionViewModel: connectionViewModel
+                )
+                .id(node.id)  // Explicit identity for SwiftUI
+            }
         }
     }
 }
@@ -307,15 +310,21 @@ struct SelectionBadge: View {
     let count: Int
 
     var body: some View {
-        Text("\(count) selected")
-            .font(.system(size: 12, weight: .medium))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background {
-                Capsule()
-                    .fill(Color.accentColor.opacity(0.9))
-            }
+        HStack(spacing: 6) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 12, weight: .semibold))
+            Text("\(count) selected")
+                .font(.system(size: 13, weight: .semibold))
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background {
+            Capsule()
+                .fill(.ultraThinMaterial)
+        }
+        .glassEffect(.regular.tint(.accentColor), in: .capsule)
+        .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
     }
 }
 

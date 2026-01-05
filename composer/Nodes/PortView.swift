@@ -26,7 +26,7 @@ struct PortView: View {
     private let hitTargetSize: CGFloat = 44
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             if isOutput {
                 portLabel
                 portCircleWithGesture
@@ -35,7 +35,7 @@ struct PortView: View {
                 portLabel
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
         .padding(.horizontal, 2)
         .offset(x: showConnectionError ? -4 : 0)
     }
@@ -59,36 +59,61 @@ struct PortView: View {
     private var portLabel: some View {
         Text(port.label)
             .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.white.opacity(0.8))
     }
 
     private var portCircle: some View {
-        Circle()
-            .fill(port.dataType.color)
-            .frame(
-                width: (isHovered || isDragging) ? hoverSize : normalSize,
-                height: (isHovered || isDragging) ? hoverSize : normalSize
-            )
-            .shadow(color: port.dataType.color.opacity(isDragging ? 0.6 : 0.3), radius: isDragging ? 6 : 3)
-            .animation(.easeInOut(duration: 0.15), value: isHovered)
-            .animation(.easeInOut(duration: 0.15), value: isDragging)
-            .onHover { hovering in
-                isHovered = hovering
-            }
-            .background(
-                GeometryReader { geometry in
-                    Color.clear
-                        .onAppear {
-                            registerCirclePosition(geometry.frame(in: .named(CanvasCoordinateSpace.name)))
-                        }
-                        .onChange(of: geometry.frame(in: .named(CanvasCoordinateSpace.name))) { _, frame in
-                            registerCirclePosition(frame)
-                        }
+        ZStack {
+            // Outer glow ring
+            Circle()
+                .fill(port.dataType.color.opacity(0.3))
+                .frame(
+                    width: (isHovered || isDragging) ? hoverSize + 4 : normalSize + 2,
+                    height: (isHovered || isDragging) ? hoverSize + 4 : normalSize + 2
+                )
+                .blur(radius: 2)
+            
+            // Main port circle
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            port.dataType.color,
+                            port.dataType.color.opacity(0.8)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(
+                    width: (isHovered || isDragging) ? hoverSize : normalSize,
+                    height: (isHovered || isDragging) ? hoverSize : normalSize
+                )
+                .overlay {
+                    Circle()
+                        .strokeBorder(Color.white.opacity(0.4), lineWidth: 1.5)
                 }
-            )
-            .accessibilityLabel("\(port.dataType.displayName) \(isOutput ? "output" : "input") port")
-            .accessibilityHint("Double tap to connect")
-            .accessibilityAddTraits(.isButton)
+        }
+        .shadow(color: port.dataType.color.opacity(isDragging ? 0.8 : 0.4), radius: isDragging ? 8 : 4)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isDragging)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        .background(
+            GeometryReader { geometry in
+                Color.clear
+                    .onAppear {
+                        registerCirclePosition(geometry.frame(in: .named(CanvasCoordinateSpace.name)))
+                    }
+                    .onChange(of: geometry.frame(in: .named(CanvasCoordinateSpace.name))) { _, frame in
+                        registerCirclePosition(frame)
+                    }
+            }
+        )
+        .accessibilityLabel("\(port.dataType.displayName) \(isOutput ? "output" : "input") port")
+        .accessibilityHint("Double tap to connect")
+        .accessibilityAddTraits(.isButton)
     }
 
     private func registerCirclePosition(_ frame: CGRect) {

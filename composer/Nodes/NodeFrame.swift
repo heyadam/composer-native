@@ -16,7 +16,7 @@ enum NodeStatus {
 
     var color: Color {
         switch self {
-        case .idle: return .gray
+        case .idle: return .secondary
         case .running: return .blue
         case .success: return .green
         case .error: return .red
@@ -29,6 +29,15 @@ enum NodeStatus {
         case .running: return "arrow.trianglehead.2.clockwise.rotate.90"
         case .success: return "checkmark.circle.fill"
         case .error: return "exclamationmark.circle.fill"
+        }
+    }
+    
+    var glassConfig: Glass {
+        switch self {
+        case .idle: return .regular
+        case .running: return .regular.tint(.blue)
+        case .success: return .regular.tint(.green)
+        case .error: return .regular.tint(.red)
         }
     }
 }
@@ -68,31 +77,45 @@ struct NodeFrame<Content: View>: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack(spacing: 8) {
+            // Header with Liquid Glass effect
+            HStack(spacing: 10) {
+                // Icon with glass background
                 Image(systemName: icon)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .frame(width: 32, height: 32)
+                    .background {
+                        Circle()
+                            .fill(.ultraThinMaterial)
+                    }
 
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.primary)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
                     .lineLimit(1)
 
-                Spacer()
+                Spacer(minLength: 0)
 
                 if let status {
                     StatusBadge(status: status)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background {
+                // Header with subtle glass tint
+                Rectangle()
+                    .fill(.ultraThinMaterial.opacity(0.5))
+            }
+
+            Divider()
+                .background(Color.white.opacity(0.1))
 
             // Ports row
             if !inputPorts.isEmpty || !outputPorts.isEmpty {
                 HStack(alignment: .top, spacing: 0) {
                     // Input ports (left side)
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 10) {
                         ForEach(inputPorts) { port in
                             PortView(
                                 port: port,
@@ -107,7 +130,7 @@ struct NodeFrame<Content: View>: View {
                     Spacer()
 
                     // Output ports (right side)
-                    VStack(alignment: .trailing, spacing: 8) {
+                    VStack(alignment: .trailing, spacing: 10) {
                         ForEach(outputPorts) { port in
                             PortView(
                                 port: port,
@@ -119,27 +142,38 @@ struct NodeFrame<Content: View>: View {
                         }
                     }
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 10)
             }
 
-            // Content
+            // Content with enhanced padding
             content()
-                .padding(.horizontal, 12)
-                .padding(.bottom, 12)
+                .padding(.horizontal, 14)
+                .padding(.bottom, 14)
         }
-        .frame(minWidth: 180, maxWidth: 280)
+        .frame(minWidth: 200, maxWidth: 300)
         .background {
-            // Semi-transparent background (avoids _UIGravityWellEffectAnchorView issues with transforms)
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Color(white: 0.15, opacity: 0.85))
+            // Main Liquid Glass background
+            RoundedRectangle(cornerRadius: 16)
+                .fill(.regularMaterial)
                 .overlay {
-                    RoundedRectangle(cornerRadius: 14)
-                        .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 16)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.3),
+                                    Color.white.opacity(0.1)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
                 }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: .black.opacity(0.4), radius: 12, y: 6)
+        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 16.0))
     }
 }
 
@@ -149,9 +183,24 @@ struct StatusBadge: View {
     let status: NodeStatus
 
     var body: some View {
-        Image(systemName: status.icon)
-            .font(.system(size: 12))
-            .foregroundStyle(status.color)
+        HStack(spacing: 6) {
+            Image(systemName: status.icon)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(status.color)
+            
+            if status == .running {
+                ProgressView()
+                    .scaleEffect(0.6)
+                    .frame(width: 12, height: 12)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background {
+            Capsule()
+                .fill(.ultraThinMaterial)
+        }
+        .glassEffect(status.glassConfig, in: .capsule)
     }
 }
 

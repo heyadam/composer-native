@@ -27,55 +27,77 @@ struct TextGenerationNodeView: View {
             canvasState: state,
             connectionViewModel: connectionViewModel
         ) {
-            VStack(alignment: .leading, spacing: 8) {
-                // Model info
-                HStack(spacing: 4) {
+            VStack(alignment: .leading, spacing: 10) {
+                // Model info with enhanced styling
+                HStack(spacing: 6) {
                     Image(systemName: "cpu")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.6))
                     Text("\(data.provider)/\(data.model)")
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.7))
                     Spacer()
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background {
+                    Capsule()
+                        .fill(.ultraThinMaterial)
                 }
 
                 // Output preview or status message
                 if data.executionStatus == .running {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 8) {
                         ProgressView()
-                            .scaleEffect(0.7)
+                            .scaleEffect(0.8)
                         Text("Generating...")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.8))
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 4)
+                    .padding(12)
+                    .background {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(.ultraThinMaterial)
+                    }
                 } else if let error = data.executionError {
                     Text(error)
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(.red)
                         .lineLimit(3)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(8)
-                        .background(Color.red.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .padding(10)
+                        .background {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.red.opacity(0.2))
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .strokeBorder(Color.red.opacity(0.4), lineWidth: 1)
+                                }
+                        }
                 } else if !data.executionOutput.isEmpty {
                     ScrollView {
                         Text(data.executionOutput)
                             .font(.system(size: 12, design: .monospaced))
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(.white.opacity(0.9))
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(height: 80)
-                    .padding(8)
-                    .background(Color.black.opacity(0.2))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .frame(height: 90)
+                    .padding(10)
+                    .background {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.black.opacity(0.3))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
+                            }
+                    }
                 } else {
                     Text("Connect a prompt and run the flow")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.5))
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 4)
+                        .padding(.vertical, 8)
                 }
             }
         }

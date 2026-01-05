@@ -50,18 +50,27 @@ struct PreviewOutputNodeView: View {
     @ViewBuilder
     private var previewContent: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Preview area
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color.black.opacity(0.2))
-                .frame(minHeight: 80, maxHeight: 160)
+            // Preview area with enhanced styling
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.black.opacity(0.3))
+                .frame(minHeight: 90, maxHeight: 180)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
+                }
                 .overlay {
                     // Show preview based on connected inputs
                     if let previewData = getConnectedData() {
                         connectedDataView(previewData)
                     } else {
-                        Text("No input connected")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.tertiary)
+                        VStack(spacing: 6) {
+                            Image(systemName: "arrow.down.circle")
+                                .font(.system(size: 24, weight: .light))
+                                .foregroundStyle(.white.opacity(0.3))
+                            Text("No input connected")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.5))
+                        }
                     }
                 }
         }
@@ -70,13 +79,13 @@ struct PreviewOutputNodeView: View {
     @ViewBuilder
     private func connectedDataView(_ data: [PreviewData]) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 10) {
                 ForEach(Array(data.enumerated()), id: \.offset) { _, item in
                     previewItemView(item)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(8)
+            .padding(10)
         }
     }
 
@@ -86,30 +95,40 @@ struct PreviewOutputNodeView: View {
         case .text(let string):
             Text(string)
                 .font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.9))
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(8)
+                .background {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(.ultraThinMaterial)
+                }
 
         case .image(let image):
             #if os(macOS)
             Image(nsImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
             #else
             Image(uiImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
             #endif
 
         case .audio:
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
                 Image(systemName: "waveform")
-                    .font(.system(size: 16))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.7))
                 Text("Audio")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.6))
+            }
+            .padding(8)
+            .background {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(.ultraThinMaterial)
             }
         }
     }

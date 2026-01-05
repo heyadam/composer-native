@@ -22,6 +22,12 @@ mcp__XcodeBuildMCP__session-set-defaults
   - useLatestOS: true
 ```
 
+**For iPad-specific issues**, use the iPad Pro 11-inch (M5) simulator:
+```
+mcp__XcodeBuildMCP__session-set-defaults
+  - simulatorName: iPad Pro 11-inch (M5)
+```
+
 ### Build Commands
 
 | Task | MCP Tool |
@@ -79,6 +85,17 @@ mcp__XcodeBuildMCP__stop_sim_log_cap(logSessionId: <returned id>)
 | Verify new feature works | Build, run app, use `screenshot` or `describe_ui` |
 
 **`/axiom:fix-build`** diagnoses environment issues (zombie processes, stale Derived Data, stuck simulators) that cause mysterious failures.
+
+## Code Intelligence: Swift LSP
+
+This project has the **Swift LSP plugin** installed, which provides language server features for Swift code navigation:
+
+- **Symbol search** - Find types, functions, and properties by name
+- **Go to definition** - Navigate to symbol declarations
+- **Find references** - Locate all usages of a symbol
+- **Code completion context** - Understand available APIs
+
+Use standard Grep/Glob for quick searches, but the LSP provides semantic understanding of Swift code structure.
 
 ## Development: Axiom First, Context7 to Verify
 
