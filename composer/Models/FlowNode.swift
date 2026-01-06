@@ -50,14 +50,14 @@ final class FlowNode {
         self.label = label.isEmpty ? nodeType.displayName : label
     }
 
-    /// Get input port definitions for this node
+    /// Get input port definitions for this node (delegated to NodeRegistry)
     var inputPorts: [PortDefinition] {
-        NodePortSchemas.inputPorts(for: nodeType)
+        NodeRegistry.inputPorts(for: nodeType)
     }
 
-    /// Get output port definitions for this node
+    /// Get output port definitions for this node (delegated to NodeRegistry)
     var outputPorts: [PortDefinition] {
-        NodePortSchemas.outputPorts(for: nodeType)
+        NodeRegistry.outputPorts(for: nodeType)
     }
 
     /// Decode data from JSON storage
@@ -72,24 +72,7 @@ final class FlowNode {
     }
 }
 
-/// Data stored in TextInput nodes
-struct TextInputData: Codable {
-    var text: String = ""
-}
-
-/// Execution status for processing nodes
-enum ExecutionStatus: String, Codable, Sendable {
-    case idle
-    case running
-    case success
-    case error
-}
-
-/// Data stored in TextGeneration nodes
-struct TextGenerationData: Codable {
-    var provider: String = "openai"
-    var model: String = "gpt-4o"
-    var executionStatus: ExecutionStatus = .idle
-    var executionOutput: String = ""
-    var executionError: String?
-}
+// NOTE: Node data types have been moved to their respective NodeDefinition files:
+// - TextInputNodeData → NodeSystem/Nodes/Input/TextInputNode.swift
+// - TextGenerationNodeData → NodeSystem/Nodes/LLM/TextGenerationNode.swift
+// - ExecutionStatus → NodeSystem/ExecutionTypes.swift (moved to node data files)

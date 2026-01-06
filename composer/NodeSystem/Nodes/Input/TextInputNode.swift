@@ -1,13 +1,103 @@
 //
-//  TextInputNodeView.swift
+//  TextInputNode.swift
 //  composer
 //
-//  Text input node with editable text field
+//  Self-contained text input node definition
 //
 
 import SwiftUI
+import SwiftData
 
-struct TextInputNodeView: View {
+/// Data stored in TextInput nodes
+struct TextInputNodeData: Codable {
+    var text: String = ""
+}
+
+/// Text input node for entering text that flows to downstream nodes
+enum TextInputNode: NodeDefinition {
+    static let nodeType: NodeType = .textInput
+
+    // MARK: - Data
+
+    typealias NodeData = TextInputNodeData
+
+    static var defaultData: NodeData { NodeData() }
+
+    // MARK: - Display
+
+    static let displayName = "Text Input"
+    static let icon = "text.alignleft"
+    static let category: NodeCategory = .input
+
+    // MARK: - Ports
+
+    static let inputPorts: [PortDefinition] = []
+
+    static let outputPorts: [PortDefinition] = [
+        PortDefinition(id: PortID.textInputOutput, label: "Output", dataType: .string, isRequired: true)
+    ]
+
+    // MARK: - View
+
+    @MainActor
+    static func makeContentView(
+        node: FlowNode,
+        viewModel: NodeViewModel?,
+        state: CanvasState,
+        connectionViewModel: ConnectionViewModel?
+    ) -> some View {
+        TextInputNodeContent(
+            node: node,
+            viewModel: viewModel,
+            state: state,
+            connectionViewModel: connectionViewModel
+        )
+    }
+
+    // MARK: - Execution
+
+    static let isExecutable = false
+
+    @MainActor
+    static func execute(
+        node: FlowNode,
+        inputs: NodeInputs,
+        context: ExecutionContext
+    ) async throws -> NodeOutputs {
+        // Fetch fresh node from ModelContext (iOS SwiftData pattern)
+        let nodeId = node.id
+        let predicate = #Predicate<FlowNode> { $0.id == nodeId }
+
+        var textValue = ""
+
+        if let freshNodes = try? context.modelContext.fetch(FetchDescriptor(predicate: predicate)),
+           let freshNode = freshNodes.first {
+            let data = freshNode.decodeData(NodeData.self) ?? defaultData
+            textValue = data.text
+        } else {
+            // Fallback to passed node if fetch fails
+            let data = node.decodeData(NodeData.self) ?? defaultData
+            textValue = data.text
+        }
+
+        var outputs = NodeOutputs()
+        outputs[PortID.textInputOutput] = .string(textValue)
+        return outputs
+    }
+
+    // MARK: - Output Access
+
+    @MainActor
+    static func getOutputValue(node: FlowNode, portId: String) -> NodeValue? {
+        guard portId == PortID.textInputOutput else { return nil }
+        let data = node.decodeData(NodeData.self) ?? defaultData
+        return .string(data.text)
+    }
+}
+
+// MARK: - Content View
+
+private struct TextInputNodeContent: View {
     let node: FlowNode
     let viewModel: NodeViewModel?
     let state: CanvasState
@@ -43,7 +133,7 @@ struct TextInputNodeView: View {
                     // Save on EVERY change, not just unfocus
                     // Critical: User may click Play without unfocusing the text editor
                     guard hasInitializedText else { return }
-                    node.encodeData(TextInputData(text: newValue))
+                    node.encodeData(TextInputNodeData(text: newValue))
                     node.flow?.touch()
                 }
                 .onChange(of: isFocused) { _, newValue in
@@ -73,7 +163,7 @@ struct TextInputNodeView: View {
         // Try viewModel first, fall back to node's stored data
         if let content = viewModel?.textContent {
             text = content
-        } else if let storedData = node.decodeData(TextInputData.self) {
+        } else if let storedData = node.decodeData(TextInputNodeData.self) {
             text = storedData.text
         }
         // Always mark as initialized - even for empty nodes
@@ -87,7 +177,7 @@ struct TextInputNodeView: View {
     ZStack {
         Color.black.ignoresSafeArea()
 
-        TextInputNodeView(
+        TextInputNode.makeContentView(
             node: FlowNode(nodeType: .textInput, position: .zero, label: "User Prompt"),
             viewModel: nil,
             state: CanvasState(),

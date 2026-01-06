@@ -76,31 +76,13 @@ struct NodeContainerView: View {
 
     @ViewBuilder
     private var nodeContent: some View {
-        switch node.nodeType {
-        case .textInput:
-            TextInputNodeView(
-                node: node,
-                viewModel: nodeViewModel,
-                state: state,
-                connectionViewModel: connectionViewModel
-            )
-
-        case .textGeneration:
-            TextGenerationNodeView(
-                node: node,
-                viewModel: nodeViewModel,
-                state: state,
-                connectionViewModel: connectionViewModel
-            )
-
-        case .previewOutput:
-            PreviewOutputNodeView(
-                node: node,
-                viewModel: nodeViewModel,
-                state: state,
-                connectionViewModel: connectionViewModel
-            )
-        }
+        // Use NodeRegistry for type-erased view creation - no switch needed!
+        NodeRegistry.makeContentView(
+            for: node,
+            viewModel: nodeViewModel,
+            state: state,
+            connectionViewModel: connectionViewModel
+        )
     }
 
     // MARK: - Position

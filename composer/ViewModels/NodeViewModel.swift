@@ -65,10 +65,10 @@ final class NodeViewModel {
     /// Get text content for TextInput nodes
     var textContent: String {
         get {
-            node.decodeData(TextInputData.self)?.text ?? ""
+            node.decodeData(TextInputNodeData.self)?.text ?? ""
         }
         set {
-            node.encodeData(TextInputData(text: newValue))
+            node.encodeData(TextInputNodeData(text: newValue))
             // Signal SwiftData that the flow changed - critical for iPad where
             // view recreation can cause stale object references
             node.flow?.touch()

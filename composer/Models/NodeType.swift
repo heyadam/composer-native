@@ -8,26 +8,21 @@
 import Foundation
 
 /// Defines the available node types in the flow canvas
+///
+/// Node-specific details (displayName, icon, ports, etc.) are delegated to
+/// `NodeRegistry` which looks up the appropriate `NodeDefinition`.
 enum NodeType: String, Codable, CaseIterable, Sendable {
     case textInput
     case textGeneration
     case previewOutput
 
-    /// Human-readable display name
+    /// Human-readable display name (delegated to NodeRegistry)
     var displayName: String {
-        switch self {
-        case .textInput: return "Text Input"
-        case .textGeneration: return "Text Generation"
-        case .previewOutput: return "Preview Output"
-        }
+        NodeRegistry.displayName(for: self)
     }
 
-    /// SF Symbol icon for the node
+    /// SF Symbol icon for the node (delegated to NodeRegistry)
     var icon: String {
-        switch self {
-        case .textInput: return "text.alignleft"
-        case .textGeneration: return "sparkles"
-        case .previewOutput: return "eye"
-        }
+        NodeRegistry.icon(for: self)
     }
 }

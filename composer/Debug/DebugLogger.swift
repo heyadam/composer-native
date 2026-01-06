@@ -102,13 +102,13 @@ final class DebugLogger {
             // Node-specific data
             switch node.nodeType {
             case .textInput:
-                if let data = node.decodeData(TextInputData.self) {
+                if let data = node.decodeData(TextInputNodeData.self) {
                     let preview = String(data.text.prefix(100))
                     lines.append("    text: \"\(preview)\(data.text.count > 100 ? "..." : "")\"")
                 }
 
             case .textGeneration:
-                if let data = node.decodeData(TextGenerationData.self) {
+                if let data = node.decodeData(TextGenerationNodeData.self) {
                     lines.append("    provider: \(data.provider), model: \(data.model)")
                     lines.append("    status: \(data.executionStatus.rawValue)")
                     if !data.executionOutput.isEmpty {

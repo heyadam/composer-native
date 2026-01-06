@@ -65,7 +65,8 @@ final class FlowCanvasViewModel {
     private(set) var isExecuting: Bool = false
 
     /// Execution outputs for nodes (accumulated during execution)
-    var nodeOutputs: [UUID: String] = [:]
+    /// Keyed by node ID, contains NodeOutputs with port-keyed values
+    var nodeOutputs: [UUID: NodeOutputs] = [:]
 
     init(flow: Flow, context: ModelContext) {
         self.flow = flow
@@ -176,8 +177,8 @@ final class FlowCanvasViewModel {
             throw FlowError.invalidConnection
         }
 
-        // Validate port compatibility
-        guard NodePortSchemas.canConnect(sourceType: source.portType, targetType: target.portType) else {
+        // Validate port compatibility (delegated to NodeRegistry)
+        guard NodeRegistry.canConnect(sourceType: source.portType, targetType: target.portType) else {
             throw FlowError.incompatiblePorts
         }
 
@@ -326,21 +327,22 @@ final class FlowCanvasViewModel {
         // Track results for logging
         var nodeResults: [String] = []
 
+        // Build execution context
+        let context = ExecutionContext(modelContext: modelContext, nodeOutputs: [:])
+
         // Execute each node in order
         for node in sortedNodes {
             let nodeStart = Date()
-            await executeNode(node)
+            await executeNode(node, context: context)
             let nodeDuration = Date().timeIntervalSince(nodeStart)
 
-            // Determine status for logging
+            // Determine status for logging using registry
             let status: String
-            switch node.nodeType {
-            case .textInput:
-                status = "pass-through"
-            case .textGeneration:
-                let data = node.decodeData(TextGenerationData.self)
-                status = data?.executionStatus.rawValue ?? "unknown"
-            case .previewOutput:
+            if let execStatus = NodeRegistry.getExecutionStatus(node: node) {
+                status = execStatus.rawValue
+            } else if NodeRegistry.isExecutable(type: node.nodeType) {
+                status = "unknown"
+            } else {
                 status = "pass-through"
             }
 
@@ -384,108 +386,42 @@ final class FlowCanvasViewModel {
         return result
     }
 
-    /// Execute a single node
-    private func executeNode(_ node: FlowNode) async {
-        switch node.nodeType {
-        case .textInput:
-            // Fetch fresh node from ModelContext to ensure we read latest dataJSON
-            // Critical for iPad where flow.nodes may contain stale object references
-            let nodeId = node.id
-            let predicate = #Predicate<FlowNode> { $0.id == nodeId }
-            if let freshNodes = try? modelContext.fetch(FetchDescriptor(predicate: predicate)),
-               let freshNode = freshNodes.first {
-                let data = freshNode.decodeData(TextInputData.self) ?? TextInputData()
-                nodeOutputs[node.id] = data.text
-            } else {
-                // Fallback to passed node if fetch fails
-                let data = node.decodeData(TextInputData.self) ?? TextInputData()
-                nodeOutputs[node.id] = data.text
-            }
+    /// Execute a single node using the NodeRegistry
+    ///
+    /// - Parameters:
+    ///   - node: The node to execute
+    ///   - context: Execution context with ModelContext and accumulated outputs
+    private func executeNode(_ node: FlowNode, context: ExecutionContext) async {
+        // Gather inputs from connected upstream nodes
+        let inputs = gatherInputs(for: node)
 
-        case .textGeneration:
-            await executeTextGeneration(node)
-
-        case .previewOutput:
-            // Preview nodes don't execute, they just display their input
-            if let inputValue = getInputValue(for: node, portId: PortID.previewInputString) {
-                nodeOutputs[node.id] = inputValue
-            }
-        }
-    }
-
-    /// Execute a text generation node
-    private func executeTextGeneration(_ node: FlowNode) async {
-        var data = node.decodeData(TextGenerationData.self) ?? TextGenerationData()
-
-        // Set status to running
-        data.executionStatus = .running
-        data.executionOutput = ""
-        data.executionError = nil
-        node.encodeData(data)
-
-        // Gather inputs from connected nodes
-        let prompt = getInputValue(for: node, portId: PortID.textGenInputPrompt) ?? ""
-        let system = getInputValue(for: node, portId: PortID.textGenInputSystem)
-
-        var inputs: [String: String] = ["prompt": prompt]
-        if let system {
-            inputs["system"] = system
-        }
-
-        // Execute via API
-        var output = ""
-
+        // Execute via registry - handles all node types uniformly
         do {
-            let stream = await ExecutionService.shared.execute(
-                nodeType: "text-generation",
+            let outputs = try await NodeRegistry.execute(
+                node: node,
                 inputs: inputs,
-                provider: data.provider,
-                model: data.model
+                context: context
             )
-
-            for try await event in stream {
-                switch event {
-                case .text(let text):
-                    output += text
-                    data.executionOutput = output
-                    node.encodeData(data)
-
-                case .error(let message):
-                    data.executionStatus = .error
-                    data.executionError = message
-                    node.encodeData(data)
-                    return
-
-                case .done:
-                    break
-
-                default:
-                    break
-                }
-            }
-
-            // Success
-            data.executionStatus = .success
-            data.executionOutput = output
-            node.encodeData(data)
-            nodeOutputs[node.id] = output
-
+            nodeOutputs[node.id] = outputs
         } catch {
-            data.executionStatus = .error
-            data.executionError = error.localizedDescription
-            node.encodeData(data)
+            DebugLogger.shared.logError(error, context: "Executing node: \(node.label)")
         }
     }
 
-    /// Get the input value for a node's port from connected upstream node
-    private func getInputValue(for node: FlowNode, portId: String) -> String? {
-        // Find edge connected to this port
-        guard let edge = node.incomingEdges.first(where: { $0.targetHandle == portId }),
-              let sourceNode = edge.sourceNode else {
-            return nil
+    /// Gather input values for a node from connected upstream nodes
+    private func gatherInputs(for node: FlowNode) -> NodeInputs {
+        var inputs = NodeInputs()
+
+        for edge in node.incomingEdges {
+            guard let sourceNode = edge.sourceNode else { continue }
+
+            // Get output from source node's outputs
+            if let sourceOutputs = nodeOutputs[sourceNode.id],
+               let value = sourceOutputs[edge.sourceHandle] {
+                inputs[edge.targetHandle] = value
+            }
         }
 
-        // Return the output from the source node
-        return nodeOutputs[sourceNode.id]
+        return inputs
     }
 }

@@ -42,12 +42,12 @@ struct DebugConsoleView: View {
                     if let src = edge.sourceNode {
                         lines.append("      sourceNode: \(src.label) [\(src.nodeType.rawValue)]")
                         if src.nodeType == .textGeneration {
-                            let data = src.decodeData(TextGenerationData.self)
+                            let data = src.decodeData(TextGenerationNodeData.self)
                             lines.append("      src output length: \(data?.executionOutput.count ?? -1)")
                             lines.append("      src output: \"\(data?.executionOutput.prefix(100) ?? "nil")\"")
                         }
                         if src.nodeType == .textInput {
-                            let data = src.decodeData(TextInputData.self)
+                            let data = src.decodeData(TextInputNodeData.self)
                             lines.append("      src text: \"\(data?.text ?? "nil")\"")
                         }
                     } else {
@@ -56,7 +56,7 @@ struct DebugConsoleView: View {
                 }
             }
             if node.nodeType == .textGeneration {
-                let data = node.decodeData(TextGenerationData.self)
+                let data = node.decodeData(TextGenerationNodeData.self)
                 lines.append("    status: \(data?.executionStatus.rawValue ?? "nil")")
                 lines.append("    output length: \(data?.executionOutput.count ?? -1) chars")
                 lines.append("    output: \"\(data?.executionOutput.prefix(200) ?? "nil")\"")
@@ -213,7 +213,7 @@ struct DebugConsoleView: View {
                                 .foregroundStyle(.cyan)
                             // Show source data if text generation
                             if src.nodeType == .textGeneration {
-                                let data = src.decodeData(TextGenerationData.self)
+                                let data = src.decodeData(TextGenerationNodeData.self)
                                 Text("output: \"\(data?.executionOutput.prefix(30) ?? "nil")...\"")
                                     .foregroundStyle(.yellow)
                             }

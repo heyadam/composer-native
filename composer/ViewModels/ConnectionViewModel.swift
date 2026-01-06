@@ -78,8 +78,8 @@ final class ConnectionViewModel {
         // Must be opposite directions (output to input or vice versa)
         guard source.isOutput != port.isOutput else { return false }
 
-        // Check type compatibility
-        return NodePortSchemas.canConnect(
+        // Check type compatibility (delegated to NodeRegistry)
+        return NodeRegistry.canConnect(
             sourceType: source.isOutput ? source.portType : port.portType,
             targetType: source.isOutput ? port.portType : source.portType
         )
@@ -100,8 +100,8 @@ final class ConnectionViewModel {
 
             for port in ports {
                 let canConnect = source.isOutput
-                    ? NodePortSchemas.canConnect(sourceType: source.portType, targetType: port.dataType)
-                    : NodePortSchemas.canConnect(sourceType: port.dataType, targetType: source.portType)
+                    ? NodeRegistry.canConnect(sourceType: source.portType, targetType: port.dataType)
+                    : NodeRegistry.canConnect(sourceType: port.dataType, targetType: source.portType)
 
                 if canConnect {
                     compatible.append(ConnectionPoint(

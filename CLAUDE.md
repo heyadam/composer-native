@@ -97,6 +97,52 @@ This project has the **Swift LSP plugin** installed, which provides language ser
 
 Use standard Grep/Glob for quick searches, but the LSP provides semantic understanding of Swift code structure.
 
+## Implementation Planning
+
+For non-trivial features, create an implementation plan before writing code. After creating the plan, use the **plan-reviewer agent** to validate it.
+
+### When to Create a Plan
+
+- New features touching multiple files
+- Architectural changes or refactoring
+- Complex integrations (API, persistence, UI interactions)
+- Any task where the approach isn't immediately obvious
+
+### Plan Review Workflow
+
+1. **Enter plan mode** with `EnterPlanMode` tool
+2. **Explore the codebase** to understand existing patterns
+3. **Write the plan** with step-by-step implementation steps
+4. **Review with plan-reviewer agent** before coding:
+
+```
+Task(subagent_type: "plan-reviewer", prompt: "Review my implementation plan")
+```
+
+The plan-reviewer agent checks for:
+- **Completeness** - Missing steps, edge cases, or error handling
+- **Ordering** - Dependency issues between steps
+- **Feasibility** - Steps that may be harder than they appear
+- **Risk spots** - Changes that could break existing functionality
+
+### Example
+
+```
+User: "Add offline flow caching with SwiftData"
+
+1. Enter plan mode → explore codebase
+2. Write plan:
+   - Step 1: Create CachedFlow model
+   - Step 2: Add sync logic to FlowCanvasViewModel
+   - Step 3: Handle conflict resolution
+   - ...
+3. Run plan-reviewer agent → catches missing migration step
+4. Update plan → exit plan mode
+5. Implement with confidence
+```
+
+**Do NOT skip plan review for multi-file changes.** The reviewer catches issues that cause rework.
+
 ## Development: Axiom First, Context7 to Verify
 
 **CRITICAL: Invoke Axiom skills BEFORE writing any iOS/Swift code.** Do not write implementation code until you've consulted the relevant skill. This ensures you use current APIs and patterns.
