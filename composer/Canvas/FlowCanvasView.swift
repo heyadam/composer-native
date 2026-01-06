@@ -290,6 +290,7 @@ struct NodeLayer: View {
 
     var body: some View {
         // Wrap nodes in GlassEffectContainer for better blending and morphing
+        // Scale applied at container level (not individual nodes) for glass coherence
         GlassEffectContainer(spacing: 60.0) {
             ForEach(nodes) { node in
                 NodeContainerView(
@@ -301,6 +302,7 @@ struct NodeLayer: View {
                 .id(node.id)  // Explicit identity for SwiftUI
             }
         }
+        .scaleEffect(state.scale, anchor: .topLeading)
     }
 }
 

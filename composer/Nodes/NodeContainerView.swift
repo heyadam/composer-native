@@ -19,8 +19,8 @@ struct NodeContainerView: View {
 
     var body: some View {
         nodeContent
-            .overlay(selectionOverlay)  // Apply overlay before scale so it scales with node
-            .scaleEffect(state.scale)
+            .overlay(selectionOverlay)
+            // Scale handled at GlassEffectContainer level in NodeLayer
             .background(
                 GeometryReader { geometry in
                     Color.clear
@@ -91,10 +91,11 @@ struct NodeContainerView: View {
         // Use transient position during drag, otherwise read directly from node
         // Reading node.position directly ensures proper SwiftData observation
         let worldPosition = canvasViewModel?.transientPosition(for: node.id) ?? node.position
-        return CoordinateTransform.worldToScreen(
-            worldPosition,
-            offset: state.offset,
-            scale: state.scale
+        // Position in pre-scaled space - GlassEffectContainer handles scaling
+        // Final position: (worldPos + offset/scale) * scale = worldPos*scale + offset
+        return CGPoint(
+            x: worldPosition.x + state.offset.width / state.scale,
+            y: worldPosition.y + state.offset.height / state.scale
         )
     }
 
