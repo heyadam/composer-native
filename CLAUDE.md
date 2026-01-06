@@ -383,3 +383,41 @@ Gestures must maintain this priority order - see `.claude/rules/gesture-tests.md
 ```bash
 mcp__XcodeBuildMCP__test_macos  # Runs HitTesterTests, CanvasStateTests, KeyboardDeletionTests
 ```
+
+## Adding New Nodes
+
+Use the **add-composer-node** skill when implementing new node types. The skill provides:
+- 4-step workflow with exact file paths
+- Copy-paste templates for simple and executable nodes
+- iOS SwiftData patterns to avoid crashes
+
+**Invoke the skill:**
+```
+Skill: add-composer-node
+```
+
+Or ask naturally: "Add a node for X", "Create a new node type", "Implement a custom node"
+
+### Quick Reference
+
+| Step | File | Action |
+|------|------|--------|
+| 1 | `composer/Models/NodeType.swift` | Add enum case |
+| 2 | `composer/NodeSystem/PortID.swift` | Add port ID constants |
+| 3 | `composer/NodeSystem/Nodes/<Category>/` | Create node file |
+| 4 | `composer/NodeSystem/NodeRegistry.swift` | Register node |
+
+### Node Architecture
+
+Each node is a self-contained enum conforming to `NodeDefinition`:
+
+| Component | Purpose |
+|-----------|---------|
+| `NodeDefinition` protocol | Identity, ports, view, execution |
+| `NodeRegistry` | Type-erased storage for all definitions |
+| `NodeType` enum | Persisted to SwiftData |
+| `PortID` constants | Persisted in FlowEdge |
+
+**Templates available in skill:**
+- `examples/SimpleNode.swift` - Pass-through nodes (TextInput, PreviewOutput)
+- `examples/ExecutableNode.swift` - Async nodes with status (TextGeneration)
