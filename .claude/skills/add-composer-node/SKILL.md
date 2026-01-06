@@ -198,6 +198,83 @@ Study these files for real implementations:
 | ImageGeneration | Executable | `NodeSystem/Nodes/LLM/ImageGenerationNode.swift` |
 | PreviewOutput | Simple | `NodeSystem/Nodes/Output/PreviewOutputNode.swift` |
 
+## Calling ExecutionService (API Nodes)
+
+For nodes that call the backend API (like TextGeneration, ImageGeneration), use `ExecutionService.shared.execute()`.
+
+### Function Signature
+
+```swift
+func execute(
+    nodeType: String,        // e.g., "text-generation", "image-generation"
+    inputs: [String: Any],   // Parameters (use correct types!)
+    provider: String,        // e.g., "openai", "google", "anthropic"
+    model: String            // e.g., "gpt-5.2", "claude-sonnet-4-5"
+) -> AsyncThrowingStream<ExecutionEvent, Error>
+```
+
+### CRITICAL: API Body Differences
+
+Different node types have **different API body structures**. The ExecutionService handles this automatically, but you must use correct types:
+
+| Node Type | Body Structure | Notes |
+|-----------|----------------|-------|
+| `text-generation` | Nested `inputs` dict | `inputs.prompt`, `inputs.system` |
+| `image-generation` | Flat parameters | `input`, `size`, `partialImages` at top level |
+
+### Type Requirements
+
+**`partialImages` and other numeric params MUST be integers:**
+
+```swift
+// ✅ CORRECT - integers are integers
+let apiInputs: [String: Any] = [
+    "prompt": prompt,
+    "partialImages": 3,  // Int, not String
+    "size": "1024x1024"  // String is fine
+]
+
+// ❌ WRONG - will cause HTTP 500
+let apiInputs: [String: String] = [
+    "prompt": prompt,
+    "partialImages": "3"  // String causes API error!
+]
+```
+
+### Example Usage
+
+```swift
+let stream = await ExecutionService.shared.execute(
+    nodeType: "image-generation",
+    inputs: [
+        "prompt": promptText,
+        "size": "1024x1024",
+        "quality": "low",
+        "outputFormat": "webp",
+        "partialImages": 3  // Must be Int!
+    ],
+    provider: "openai",
+    model: "gpt-5.2"
+)
+
+for try await event in stream {
+    switch event {
+    case .image(let data, let mimeType):
+        // Handle final image
+    case .partialImage(let data, let index, let mimeType):
+        // Handle partial image during generation
+    case .text(let text):
+        // Handle text output
+    case .error(let message):
+        // Handle error
+    case .done:
+        break
+    default:
+        break
+    }
+}
+```
+
 ## Validation After Implementation
 
 1. Build with `mcp__XcodeBuildMCP__build_sim` or `build_macos`

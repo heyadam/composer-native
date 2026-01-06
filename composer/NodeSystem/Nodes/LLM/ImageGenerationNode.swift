@@ -92,12 +92,12 @@ enum ImageGenerationNode: NodeDefinition {
         }
 
         // Hardcoded image generation parameters
-        let apiInputs: [String: String] = [
+        let apiInputs: [String: Any] = [
             "prompt": prompt,
             "size": "1024x1024",
             "quality": "low",
             "outputFormat": "webp",
-            "partialImages": "3"
+            "partialImages": 3  // Must be Int, not String, for OpenAI API
         ]
 
         // Execute via API

@@ -18,7 +18,7 @@ actor ExecutionService {
     /// Execute a node and return a stream of events
     func execute(
         nodeType: String,
-        inputs: [String: String],
+        inputs: [String: Any],
         provider: String,
         model: String
     ) -> AsyncThrowingStream<ExecutionEvent, Error> {
@@ -37,15 +37,30 @@ actor ExecutionService {
                     }
 
                     // Build request body
-                    let body: [String: Any] = [
+                    // Note: image-generation expects params at top level, not nested in "inputs"
+                    var body: [String: Any] = [
                         "type": nodeType,
-                        "inputs": inputs,
                         "provider": provider,
                         "model": model,
                         "apiKeys": [
                             provider: apiKey
                         ]
                     ]
+
+                    if nodeType == "image-generation" {
+                        // Flatten inputs to top level for image-generation API
+                        for (key, value) in inputs {
+                            // Backend expects "input" field for the prompt content (from connected input)
+                            if key == "prompt" {
+                                body["input"] = value
+                            } else {
+                                body[key] = value
+                            }
+                        }
+                    } else {
+                        // Text generation and others use nested inputs
+                        body["inputs"] = inputs
+                    }
 
                     let jsonData = try JSONSerialization.data(withJSONObject: body)
 

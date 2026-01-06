@@ -1077,3 +1077,48 @@ Required for full functionality:
 4. **Caching**: Consider Core Data or SwiftData for offline flow storage
 5. **Share URLs**: Universal links to `composer.design/f/[liveId]/[token]`
 6. **SwiftData Relationships**: When creating edges, set node relationships AFTER inserting the edge to ensure inverse relationship sync
+
+---
+
+## API Body Structure by Node Type
+
+**CRITICAL**: Different node types have different API body structures. Getting this wrong causes HTTP 500 errors.
+
+### text-generation (Nested `inputs`)
+
+```json
+{
+  "type": "text-generation",
+  "inputs": {
+    "prompt": "User message",
+    "system": "System instructions"
+  },
+  "provider": "openai",
+  "model": "gpt-5.2",
+  "apiKeys": { "openai": "sk-..." }
+}
+```
+
+### image-generation (Flat Parameters)
+
+```json
+{
+  "type": "image-generation",
+  "input": "A dog playing fetch",
+  "size": "1024x1024",
+  "quality": "low",
+  "outputFormat": "webp",
+  "partialImages": 3,
+  "provider": "openai",
+  "model": "gpt-5.2",
+  "apiKeys": { "openai": "sk-..." }
+}
+```
+
+**Key differences for image-generation:**
+- Parameters are at **top level**, NOT nested in `inputs`
+- Prompt content goes to `input` field (not `prompt` or `inputs.prompt`)
+- `partialImages` must be an **integer** (not string `"3"`)
+- `size`, `quality`, `outputFormat` are strings
+
+The native `ExecutionService` handles this automatically by flattening inputs for `image-generation` requests.
