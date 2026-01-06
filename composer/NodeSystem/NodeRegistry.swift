@@ -99,6 +99,7 @@ enum NodeRegistry {
         register(TextInputNode.self, in: &registry)
         register(TextGenerationNode.self, in: &registry)
         register(PreviewOutputNode.self, in: &registry)
+        register(ImageGenerationNode.self, in: &registry)
         return registry
     }()
 

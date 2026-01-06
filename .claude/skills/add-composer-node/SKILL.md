@@ -17,7 +17,7 @@ Composer uses a **protocol-oriented node system** where each node is a self-cont
 | `PortID` constants | Stable port identifiers (persisted in FlowEdge) |
 | `FlowNode` | SwiftData model storing node position and JSON-encoded data |
 
-## 4-Step Workflow
+## 5-Step Workflow
 
 ### Step 1: Add NodeType Case
 
@@ -93,6 +93,30 @@ private static let definitions: [NodeType: AnyNodeDefinition] = {
     return registry
 }()
 ```
+
+### Step 5: Add to UI Menu
+
+**File:** `composer/ContentView.swift`
+
+Add a button to the "Add Node" menu (around line 142):
+
+```swift
+Menu {
+    // ... existing buttons ...
+
+    Button {
+        addNode(.myNewNode, to: flow)
+    } label: {
+        Label("My New Node", systemImage: NodeType.myNewNode.icon)
+    }
+
+    // ... more buttons ...
+} label: {
+    Label("Add Node", systemImage: "plus.rectangle")
+}
+```
+
+**Note:** Place the button in logical order by category (inputs first, then LLM, then outputs).
 
 ## Port Data Types
 
@@ -171,6 +195,7 @@ Study these files for real implementations:
 |------|------|------|
 | TextInput | Simple | `NodeSystem/Nodes/Input/TextInputNode.swift` |
 | TextGeneration | Executable | `NodeSystem/Nodes/LLM/TextGenerationNode.swift` |
+| ImageGeneration | Executable | `NodeSystem/Nodes/LLM/ImageGenerationNode.swift` |
 | PreviewOutput | Simple | `NodeSystem/Nodes/Output/PreviewOutputNode.swift` |
 
 ## Validation After Implementation

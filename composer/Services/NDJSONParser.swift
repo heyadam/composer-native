@@ -14,6 +14,8 @@ enum ExecutionEvent: Sendable {
     case usage(promptTokens: Int, completionTokens: Int)
     case error(String)
     case done
+    case image(Data, String)              // (imageData, mimeType)
+    case partialImage(Data, Int, String)  // (imageData, index, mimeType)
 }
 
 /// Parser for NDJSON streaming responses
@@ -58,6 +60,19 @@ struct NDJSONParser: Sendable {
 
             case "done":
                 return .done
+
+            case "image":
+                guard let value = json["value"] as? String,
+                      let mimeType = json["mimeType"] as? String,
+                      let data = Data(base64Encoded: value) else { return nil }
+                return .image(data, mimeType)
+
+            case "partial":
+                guard let value = json["value"] as? String,
+                      let mimeType = json["mimeType"] as? String,
+                      let index = json["index"] as? Int,
+                      let data = Data(base64Encoded: value) else { return nil }
+                return .partialImage(data, index, mimeType)
 
             default:
                 return nil

@@ -42,6 +42,14 @@ enum PortID {
     /// PreviewOutput audio input
     static let previewInputAudio = "preview.input.audio"
 
+    // MARK: - ImageGeneration
+
+    /// ImageGeneration prompt input
+    static let imageGenInputPrompt = "image-gen.input.prompt"
+
+    /// ImageGeneration output
+    static let imageGenOutput = "image-gen.output"
+
     // MARK: - Future Node Types
 
     // Conditional node (future)

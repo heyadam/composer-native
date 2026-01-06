@@ -126,6 +126,17 @@ final class DebugLogger {
                         lines.append("    ← from: \(src.label)")
                     }
                 }
+
+            case .imageGeneration:
+                if let data = node.decodeData(ImageGenerationNodeData.self) {
+                    lines.append("    status: \(data.executionStatus.rawValue)")
+                    if let imageData = data.executionOutput {
+                        lines.append("    output: <image \(imageData.count) bytes>")
+                    }
+                    if let error = data.executionError {
+                        lines.append("    error: \(error)")
+                    }
+                }
             }
         }
 

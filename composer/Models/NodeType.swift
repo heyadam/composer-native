@@ -15,6 +15,7 @@ enum NodeType: String, Codable, CaseIterable, Sendable {
     case textInput
     case textGeneration
     case previewOutput
+    case imageGeneration
 
     /// Human-readable display name (delegated to NodeRegistry)
     var displayName: String {

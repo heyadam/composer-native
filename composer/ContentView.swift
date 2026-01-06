@@ -153,6 +153,12 @@ struct ContentView: View {
                 }
 
                 Button {
+                    addNode(.imageGeneration, to: flow)
+                } label: {
+                    Label("Image Generation", systemImage: NodeType.imageGeneration.icon)
+                }
+
+                Button {
                     addNode(.previewOutput, to: flow)
                 } label: {
                     Label("Preview Output", systemImage: NodeType.previewOutput.icon)
