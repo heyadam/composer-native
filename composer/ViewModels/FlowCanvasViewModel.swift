@@ -68,6 +68,9 @@ final class FlowCanvasViewModel {
     /// Keyed by node ID, contains NodeOutputs with port-keyed values
     var nodeOutputs: [UUID: NodeOutputs] = [:]
 
+    /// Preview sidebar state (injected from ContentView)
+    var previewSidebarState: PreviewSidebarState?
+
     init(flow: Flow, context: ModelContext) {
         self.flow = flow
         self.modelContext = context
@@ -319,6 +322,10 @@ final class FlowCanvasViewModel {
         isExecuting = true
         nodeOutputs.removeAll()
 
+        // Clear previous preview entries and show sidebar
+        previewSidebarState?.clearEntries()
+        previewSidebarState?.show()
+
         DebugLogger.shared.logExecutionStart(flowName: flow.name, nodeCount: flow.nodes.count)
 
         // Topological sort nodes
@@ -395,6 +402,22 @@ final class FlowCanvasViewModel {
         // Gather inputs from connected upstream nodes
         let inputs = gatherInputs(for: node)
 
+        // For PreviewOutput nodes, populate the sidebar from INPUTS
+        // (not outputs, since PreviewOutput is pass-through and returns empty outputs)
+        if node.nodeType == .previewOutput {
+            let entry = PreviewEntry(
+                id: UUID(),
+                nodeId: node.id,
+                nodeLabel: node.label,
+                status: .success,
+                timestamp: Date(),
+                stringOutput: inputs.string(for: PortID.previewInputString),
+                imageOutput: inputs.imageData(for: PortID.previewInputImage),
+                audioOutput: inputs.audioData(for: PortID.previewInputAudio)
+            )
+            previewSidebarState?.addOrUpdatePreviewEntry(entry)
+        }
+
         // Execute via registry - handles all node types uniformly
         do {
             let outputs = try await NodeRegistry.execute(
@@ -405,6 +428,15 @@ final class FlowCanvasViewModel {
             nodeOutputs[node.id] = outputs
         } catch {
             DebugLogger.shared.logError(error, context: "Executing node: \(node.label)")
+
+            // Update preview entry with error if this was a PreviewOutput node
+            if node.nodeType == .previewOutput {
+                previewSidebarState?.updateStatus(
+                    for: node.id,
+                    status: .error,
+                    error: error.localizedDescription
+                )
+            }
         }
     }
 

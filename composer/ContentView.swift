@@ -16,35 +16,46 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var canvasViewModel: FlowCanvasViewModel?
     @State private var showDebugConsole = false
+    @State private var previewSidebarState = PreviewSidebarState()
 
     // MARK: - View Body
 
     var body: some View {
-        VStack(spacing: 0) {
-            NavigationSplitView {
-                sidebar
-            } detail: {
-                if let flow = selectedFlow {
-                    FlowCanvasView(flow: flow) { viewModel in
-                        canvasViewModel = viewModel
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                NavigationSplitView {
+                    sidebar
+                } detail: {
+                    if let flow = selectedFlow {
+                        FlowCanvasView(flow: flow) { viewModel in
+                            canvasViewModel = viewModel
+                            viewModel.previewSidebarState = previewSidebarState
+                        }
+                        .toolbar {
+                            canvasToolbar(for: flow)
+                        }
+                    } else {
+                        ContentUnavailableView(
+                            "No Flow Selected",
+                            systemImage: "square.grid.2x2",
+                            description: Text("Select a flow from the sidebar or create a new one")
+                        )
                     }
-                    .toolbar {
-                        canvasToolbar(for: flow)
-                    }
-                } else {
-                    ContentUnavailableView(
-                        "No Flow Selected",
-                        systemImage: "square.grid.2x2",
-                        description: Text("Select a flow from the sidebar or create a new one")
-                    )
+                }
+
+                // Debug Console
+                if showDebugConsole, let flow = selectedFlow {
+                    DebugConsoleView(flow: flow)
                 }
             }
 
-            // Debug Console
-            if showDebugConsole, let flow = selectedFlow {
-                DebugConsoleView(flow: flow)
+            // Preview Sidebar (right side)
+            if previewSidebarState.isVisible {
+                PreviewSidebarView(state: previewSidebarState)
+                    .transition(.move(edge: .trailing))
             }
         }
+        .animation(.easeInOut(duration: 0.25), value: previewSidebarState.isVisible)
         .onAppear {
             // Initialize debug logger
             DebugLogger.shared.logEvent("App launched")
@@ -190,6 +201,15 @@ struct ContentView: View {
             } label: {
                 Label("Settings", systemImage: "gearshape")
             }
+
+            Divider()
+
+            Button {
+                previewSidebarState.toggle()
+            } label: {
+                Label("Preview", systemImage: "sidebar.trailing")
+            }
+            .help("Toggle preview sidebar")
         }
     }
 
